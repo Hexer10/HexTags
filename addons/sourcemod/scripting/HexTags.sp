@@ -5,7 +5,7 @@
  * 
  * Copyright (C) 2017 Mattia (Hexah|Hexer10|Papero)
  *
- * This file is part of the MyJailbreak SourceMod Plugin.
+ * This file is part of the HexTags SourceMod Plugin.
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, version 3.0, as published by the
@@ -22,42 +22,55 @@
  
 #include <sourcemod>
 #include <sdktools>
-#include <sdkhooks>
 #include <chat-processor>
-#include <hexstocks>
+#include <hextags>
+
+#undef REQUIRE_EXTENSIONS
+#undef REQUIRE_PLUGIN
+#include <mostactive>
+#include <cstrike>
+#define REQUIRE_EXTENSIONS
+#define REQUIRE_PLUGIN
 
 #define PLUGIN_AUTHOR         "Hexah"
-#define PLUGIN_VERSION        "1.01"
+#define PLUGIN_VERSION        "1.1"
 
 
 #pragma semicolon 1
 #pragma newdecls required
 
+Handle fTagsUpdated;
+
 bool bLate;
+bool bMostActive;
+
+char sTags[MAXPLAYERS+1][eTags][32];
 
 KeyValues kv;
 
-enum eTags
-{
-	ScoreTag,
-	ChatTag,
-	ChatColor,
-	NameColor
-}
-char sTags[MAXPLAYERS+1][eTags][32];
-
+//Plugin infos
 public Plugin myinfo =
 {
-	name = "HexTags",
+	name = "hextags",
 	author = PLUGIN_AUTHOR,
 	description = "",
 	version = PLUGIN_VERSION,
 	url = "csitajb.it"
 };
 
-
+//Startup
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
+	//API
+	RegPluginLibrary("hextags");
+
+	CreateNative("HexTags_GetClientTag", Native_GetClientTag);
+	CreateNative("HexTags_SetClientTag", Native_SetClientTag);
+	CreateNative("HexTags_ResetClientTag", Native_ResetClientTags);
+	
+	fTagsUpdated = CreateGlobalForward("HexTags_OnTagsUpdated", ET_Ignore, Param_Cell);
+	
+	//LateLoad
 	bLate = late;
 	return APLRes_Success;
 }
@@ -68,6 +81,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_BAN);
 	
 	LoadKv();
+	
 	if (bLate)
 		for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i)) OnClientPostAdminCheck(i); //LateLoad
 	
@@ -76,12 +90,29 @@ public void OnPluginStart()
 	HookEvent("player_team", Event_CheckTags);
 }
 
+public void OnAllPluginsLoaded()
+{
+	bMostActive = LibraryExists("mostactive");
+}
+
+public void OnLibraryAdded(const char[] name)
+{
+	if (StrEqual(name, "mostactive"))
+		bMostActive = true;
+}
+
+public void OnLibraryRemoved(const char[] name)
+{
+	if (StrEqual(name, "mostactive"))
+		bMostActive = false;
+}
+
 //Commands
 public Action Cmd_ReloadTags(int client, int args)
 {
 	LoadKv();
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
-	
+
 	ReplyToCommand(client, "[SM] Tags succesfully reloaded!");
 	return Plugin_Handled;
 }
@@ -91,7 +122,7 @@ public void OnClientPostAdminCheck(int client)
 {
 	LoadTags(client);
 	
-	if (strlen(sTags[client][ScoreTag]) > 0)
+	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
 }
 
@@ -99,17 +130,17 @@ public void Event_CheckTags(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(event.GetInt("userid"));
 	
-	if (strlen(sTags[client][ScoreTag]) > 0)
+	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]);
 }
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
-	Format(name, MAXLENGTH_MESSAGE, "%s%s%s{default}", sTags[author][ChatTag], sTags[author][NameColor], name);	
-	Format(message, MAXLENGTH_MESSAGE, "%s %s", sTags[author][ChatColor], message);
+	Format(name, MAXLENGTH_NAME, "%s%s%s{default}", sTags[author][ChatTag], sTags[author][NameColor], name);	
+	Format(message, MAXLENGTH_MESSAGE, "%s%s", sTags[author][ChatColor], message);
 	
-	processcolors = true;	
-	
+	processcolors = true;
+	removecolors = false;
 	return Plugin_Changed;
 }
 
@@ -132,18 +163,20 @@ void LoadKv()
 		SetFailState("Couldn't import: \"%s\"", sConfig); //Check if file was imported properly
 		
 	if (!kv.GotoFirstSubKey())
-		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there isn't any entry
+		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entry
 }
 
 void LoadTags(int client)
 {
 	//Clear the tags when re-checking
-	strcopy(sTags[client][ScoreTag], sizeof(sTags[][]), "");
-	strcopy(sTags[client][ChatTag], sizeof(sTags[][]), "");
-	strcopy(sTags[client][ChatColor], sizeof(sTags[][]), "");
-	strcopy(sTags[client][NameColor], sizeof(sTags[][]), "");
+	ResetTags(client);
 	
 	kv.Rewind();
+	
+	//Call the forward
+	Call_StartForward(fTagsUpdated);
+	Call_PushCell(client);
+	Call_Finish();
 	
 	//Check steamid checking
 	char steamid[32];
@@ -197,11 +230,46 @@ void LoadTags(int client)
 		}
 	}
 	
+	//Start total play-time checking
+	if (bMostActive)
+	{
+		int iOldTime;
+		bool bReturn;
+		
+		if (!kv.GotoFirstSubKey())
+			return;
+		do
+		{
+			char sSecs[16];
+			kv.GetSectionName(sSecs, sizeof(sSecs));
+
+			if (sSecs[0] != '#') //Check if it's a "time-format"
+				continue;
+			
+			Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
+
+			if (iOldTime >= StringToInt(sSecs)) //Select only the higher time.
+				continue;
+
+			if (StringToInt(sSecs) <= MostActive_GetPlayTimeTotal(client))
+			{
+				GetTags(client);
+				iOldTime = StringToInt(sSecs); //Save the time
+				bReturn = true; 
+			}
+		}
+		while (kv.GotoNextKey());
+		
+		kv.Rewind();
+		if (bReturn)
+			return;
+	}
 	//Check for 'All' entry
 	if (kv.JumpToKey("Default"))
 		GetTags(client);
 }
 
+//Stocks
 void GetTags(int client)
 {
 	kv.GetString("ScoreTag", sTags[client][ScoreTag], sizeof(sTags[][]), "");
@@ -210,3 +278,75 @@ void GetTags(int client)
 	kv.GetString("NameColor", sTags[client][NameColor], sizeof(sTags[][]), "{teamcolor}");
 }
 
+void ResetTags(int client)
+{
+	strcopy(sTags[client][ScoreTag], sizeof(sTags[][]), "");
+	strcopy(sTags[client][ChatTag], sizeof(sTags[][]), "");
+	strcopy(sTags[client][ChatColor], sizeof(sTags[][]), "");
+	strcopy(sTags[client][NameColor], sizeof(sTags[][]), "");
+}
+
+bool IsCS()
+{
+	EngineVersion engine = GetEngineVersion();
+	
+	return (engine == Engine_CSGO || engine == Engine_CSS);
+}
+
+//API
+public int Native_GetClientTag(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	
+	if (client < 1 || client > MaxClients)
+	{
+    	return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
+	}
+	if (!IsClientConnected(client))
+	{
+		return ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not connected", client);
+	}
+	
+	eTags Tag = view_as<eTags>(GetNativeCell(2));
+	
+	SetNativeString(3, sTags[client][Tag], GetNativeCell(4));
+	return 0;
+}
+
+public int Native_SetClientTag(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	
+	if (client < 1 || client > MaxClients)
+	{
+    	return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
+	}
+	if (!IsClientConnected(client))
+	{
+		return ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not connected", client);
+	}
+	
+	char sTag[32];
+	eTags Tag = view_as<eTags>(GetNativeCell(2));
+	GetNativeString(3, sTag, sizeof(sTag));
+	
+	strcopy(sTags[client][Tag], sizeof(sTags[][]), sTag);
+	return 0;
+}
+
+public int Native_ResetClientTags(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	
+	if (client < 1 || client > MaxClients)
+	{
+    	return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
+	}
+	if (!IsClientConnected(client))
+	{
+		return ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not connected", client);
+	}
+	
+	LoadTags(client);
+	return 0;
+}
