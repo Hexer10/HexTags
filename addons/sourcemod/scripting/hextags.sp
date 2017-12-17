@@ -44,7 +44,7 @@ Handle fTagsUpdated;
 bool bLate;
 bool bMostActive;
 
-char sTags[MAXPLAYERS+1][eTags][32];
+char sTags[MAXPLAYERS+1][eTags][128];
 
 KeyValues kv;
 
@@ -136,11 +136,26 @@ public void Event_CheckTags(Event event, const char[] name, bool dontBroadcast)
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
-	Format(name, MAXLENGTH_NAME, "%s%s%s{default}", sTags[author][ChatTag], sTags[author][NameColor], name);	
-	Format(message, MAXLENGTH_MESSAGE, "%s%s", sTags[author][ChatColor], message);
+	
+	//Add colors & tags
+	char sNewName[MAXLENGTH_NAME];
+	char sNewMessage[MAXLENGTH_MESSAGE];
+	Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", sTags[author][ChatTag], sTags[author][NameColor], name); 
+	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", sTags[author][ChatColor], message);
+	
+	//Update the params
+	char sTime[8];
+	FormatTime(sTime, sizeof(sTime), "%R");
+	ReplaceString(sNewName, sizeof(sNewName), "{time}", sTime);
+	ReplaceString(sNewMessage, sizeof(sNewMessage), "{time}", sTime);
+	
+	//Update the name & message
+	strcopy(name, MAXLENGTH_NAME, sNewName);
+	strcopy(message, MAXLENGTH_MESSAGE, sNewMessage);
 	
 	processcolors = true;
 	removecolors = false;
+	
 	return Plugin_Changed;
 }
 
