@@ -33,7 +33,7 @@
 #define REQUIRE_PLUGIN
 
 #define PLUGIN_AUTHOR         "Hexah"
-#define PLUGIN_VERSION        "1.1"
+#define PLUGIN_VERSION        "1.11"
 
 
 #pragma semicolon 1
