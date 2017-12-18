@@ -188,11 +188,6 @@ void LoadTags(int client)
 	
 	kv.Rewind();
 	
-	//Call the forward
-	Call_StartForward(fTagsUpdated);
-	Call_PushCell(client);
-	Call_Finish();
-	
 	//Check steamid checking
 	char steamid[32];
 	if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
@@ -282,6 +277,11 @@ void LoadTags(int client)
 	//Check for 'All' entry
 	if (kv.JumpToKey("Default"))
 		GetTags(client);
+		
+	//Call the forward
+	Call_StartForward(fTagsUpdated);
+	Call_PushCell(client);
+	Call_Finish();
 }
 
 //Stocks
