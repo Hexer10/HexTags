@@ -64,7 +64,7 @@ enum eTags
  *
  * @error				Invalid client index, or not connected.
  */
-native void HexTags_GetClientTag(int client, eTags TagType, char[] buffer, int maxlength)
+native void HexTags_GetClientTag(int client, eTags TagType, char[] buffer, int maxlength);
 
 /** 
  * Sets an HexTags client tag.
