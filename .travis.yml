@@ -10,13 +10,13 @@ language: c
 sudo: false
 
 script:
-  - 'if [[ $TRAVIS_PULL_REQUEST != "false" ]]; then bash ci/test.sh; fi'
-  - 'if [[ $TRAVIS_PULL_REQUEST == "false" ]]; then bash ci/build.sh $TRAVIS_TAG; fi'
+  - if [[ $TRAVIS_PULL_REQUEST != "false" ]]; then bash ci/test.sh; fi
+  - if [[ $TRAVIS_PULL_REQUEST == "false" ]]; then bash ci/build.sh $TRAVIS_TAG; fi
 
-deploy:
+  deploy:
   provider: releases
   api_key:
-    secure: p3uaYmrDMH+U9O2alCKBju18ur1MR9wb2vhGzz0q1jXMbMEuX1D6dzVLkwRV3svCP9ZsSd2H8p4s+RjWvF487SfVEDdR1+qeF4Wus9OYjD6SPw2GQaYmAs17SFw7T+szyz2TxUACcdT2TvQy3KG0x1PK/ExRmWZwN13xT2/J7Ar/trgAlSZP8o7yoDBmDMcPcBXhh4CTiNnqf6VN7gqG8k2IsJa1PT0dxGAVfwbj2M9E8CWNE2v1qbeFgQhZbLHwNmRpCTjoqe6KV9LlQTZg4QWlt1QZkJWoygxeXdDD10r+lRHoDw+bDqEClSl5OBdjGUdD44qz20ERfN4kMJW91nQadyRwXbpIuzmRrZg1yEABOkQBvzLWW2ghETJ837eKaWmICHIrTX+fxyu1rXELQBO53HDAypNm9YSuRB1DkRmkT8YxWaUMfYpDK1G4eJMi6WQo9RgEXZc4BTsTvsgp8KmD33Hj8ix27kKLbBfe1y+Gq35AmInrxpjGRSY86hMDdqLNIEbRTQkeQIMBJ/5rE3pJrm/OB+c+Bzuxa/aOSqNMu4ji9JDzCLk9yuAXQ2PntduGh9duYmSfUWKrdLMNlFwD3t6Ofl6p3A7oQ/ZXO79D+RgsqKg3eAfyomZ8wSHQrjrxjt4QkY25wz9yG6KAVYleAZtoMQvD5SusmbloCVs=
+    secure: fKAR63h98M2N+9RqOrCqel6/hJIEx/SBGLtJusO1neZxcPs2ct/6vfWn+7ysK8Z2bDr/JfzgreQb/F7j404Re6a+OMhKwd6XY1K5CcuGQ5CPj51W3lBbXz7ODHBCGLqFuQGEs0K/cCltw40X05p07AcDVFe7lVPKwfBpLP4NTp96eO1mvakH3GR+g0mAghlM8I8rVBm76j70s3gi+YV+4MF2nc+BNY7SvngGLCRGLFWQ51ZIhJADZGV7R9j9dKDQnl4YKlMGnH9V3WtQWfpyXcfPOofL8bse/Prg9FIgoTcf4v7j5L0Rvifvy5uH2tFVrxUQs5WCd16TXhVxX78Jhxb1U/QGZgNywPVr0Vr0elw3lPkUSF2PKBaErelKlD/slKTI2sSMt2AuEZwcw0ClEFJg+4lK3VyN5kcrH/cBwu2YQjFfUxtUHinPf4QiA8kaUn43SrRNf5KVpLJEbZAmj7kRYRzDx/lr9aYRgkaoe9O1/xvsXlm4LbcZgi1XfWVgPKudhYJIxY/ZOT9MyY1e/y91x1ohowUyzPjrcCGR9Hzz7aLTGw7GMecq09x3NGC6EMp2Jtn+vrYPUWAdY+CaB8tzEMdxKXurI9GbH2uTbjLey5+Ll85DXdUjNF2nQ2LNa0syKbaZfg4hzO5FnySh9eAOvg/Fj58jkTlc2PCwo2U=
   file: hextags.zip
   skip_cleanup: true
   on:
