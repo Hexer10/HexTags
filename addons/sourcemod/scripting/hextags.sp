@@ -53,7 +53,7 @@ public Plugin myinfo =
 {
 	name = "hextags",
 	author = PLUGIN_AUTHOR,
-	description = "",
+	description = "Edit Tags & Colors!",
 	version = PLUGIN_VERSION,
 	url = "csitajb.it"
 };
@@ -144,7 +144,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", sTags[author][ChatColor], message);
 	
 	//Update the params
-	char sTime[8];
+	char sTime[16];
 	FormatTime(sTime, sizeof(sTime), "%R");
 	ReplaceString(sNewName, sizeof(sNewName), "{time}", sTime);
 	ReplaceString(sNewMessage, sizeof(sNewMessage), "{time}", sTime);
