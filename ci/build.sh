@@ -17,7 +17,7 @@ do
   rm output.txt
 done
 
-addons/sourcemod/scripting/compile.sh plugin.sp
+addons/sourcemod/scripting/compile.sh hextags.sp
 
 echo "Remove plugins folder if exists"
 if [ -d "addons/sourcemod/plugins" ]; then
@@ -26,7 +26,7 @@ fi
 
 echo "Create clean plugins folder"
 mkdir addons/sourcemod/plugins
-mv addons/sourcemod/scripting/compiled/plugin.smx addons/sourcemod/plugins
+mv addons/sourcemod/scripting/compiled/hextags.smx addons/sourcemod/plugins
 
 echo "Delete sourcemod folders"
 cd addons/sourcemod/
