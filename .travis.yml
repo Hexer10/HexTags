@@ -1,0 +1,25 @@
+addons:
+  apt:
+    packages:
+    - lftp
+    - lib32z1
+    - lib32stdc++6
+
+language: c
+
+sudo: false
+
+script:
+  - 'if [[ $TRAVIS_PULL_REQUEST != "false" ]]; then bash ci/test.sh; fi'
+  - 'if [[ $TRAVIS_PULL_REQUEST == "false" ]]; then bash ci/build.sh $TRAVIS_TAG; fi'
+
+deploy:
+  provider: releases
+  api_key:
+    secure: p3uaYmrDMH+U9O2alCKBju18ur1MR9wb2vhGzz0q1jXMbMEuX1D6dzVLkwRV3svCP9ZsSd2H8p4s+RjWvF487SfVEDdR1+qeF4Wus9OYjD6SPw2GQaYmAs17SFw7T+szyz2TxUACcdT2TvQy3KG0x1PK/ExRmWZwN13xT2/J7Ar/trgAlSZP8o7yoDBmDMcPcBXhh4CTiNnqf6VN7gqG8k2IsJa1PT0dxGAVfwbj2M9E8CWNE2v1qbeFgQhZbLHwNmRpCTjoqe6KV9LlQTZg4QWlt1QZkJWoygxeXdDD10r+lRHoDw+bDqEClSl5OBdjGUdD44qz20ERfN4kMJW91nQadyRwXbpIuzmRrZg1yEABOkQBvzLWW2ghETJ837eKaWmICHIrTX+fxyu1rXELQBO53HDAypNm9YSuRB1DkRmkT8YxWaUMfYpDK1G4eJMi6WQo9RgEXZc4BTsTvsgp8KmD33Hj8ix27kKLbBfe1y+Gq35AmInrxpjGRSY86hMDdqLNIEbRTQkeQIMBJ/5rE3pJrm/OB+c+Bzuxa/aOSqNMu4ji9JDzCLk9yuAXQ2PntduGh9duYmSfUWKrdLMNlFwD3t6Ofl6p3A7oQ/ZXO79D+RgsqKg3eAfyomZ8wSHQrjrxjt4QkY25wz9yG6KAVYleAZtoMQvD5SusmbloCVs=
+  file: hextags.zip
+  skip_cleanup: true
+  on:
+    branch: master
+    tags: true
+    repo: Hexer10/HexTags
