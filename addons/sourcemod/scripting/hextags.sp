@@ -145,7 +145,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	
 	//Update the params
 	char sTime[16];
-	FormatTime(sTime, sizeof(sTime), "%R");
+	FormatTime(sTime, sizeof(sTime), "%H:%M");  
 	ReplaceString(sNewName, sizeof(sNewName), "{time}", sTime);
 	ReplaceString(sNewMessage, sizeof(sNewMessage), "{time}", sTime);
 	
