@@ -37,6 +37,6 @@ rm -rf metamod
 cd ..
 
 echo "Compress the plugin"
-zip -9rq hextags.zip addons
+zip -9rq hextags.zip addons LICENSE
 
 echo "Build done"
