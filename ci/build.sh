@@ -30,9 +30,8 @@ mv addons/sourcemod/scripting/compiled/hextags.smx addons/sourcemod/plugins
 
 echo "Delete sourcemod folders"
 cd addons/sourcemod/
-rm -rf addons/sourcemod/configs/*
 shopt -s extglob
-rm -rf !(plugins)
+rm -rf !(plugins|configs/hextags.cfg)
 cd ..
 rm -rf metamod
 cd ..
