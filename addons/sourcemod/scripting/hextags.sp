@@ -17,7 +17,7 @@
  * details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program. If not, see <http://www.gnu.org/licenses/>. 
+ * this program. If not, see <http://www.gnu.org/licenses/>.
  */
  
 #include <sourcemod>
@@ -240,12 +240,12 @@ void LoadTags(int client)
 		}
 	}
 	
-	bool bReturn;
 	//Start total play-time checking
 	if (bMostActive)
 	{
 		int iOldTime;
-
+		bool bReturn;
+		
 		if (!kv.GotoFirstSubKey())
 			return;
 		do
@@ -274,30 +274,6 @@ void LoadTags(int client)
 		if (bReturn)
 			return;
 	}
-	
-	//Start team checking
-	if (!kv.GotoFirstSubKey())
-		return;
-	do
-	{
-		char sTeam[16];
-		kv.GetSectionName(sTeam, sizeof(sTeam));
-		
-		int iTeam = FindTeamByName(sTeam);
-		if (iTeam < 0)
-			continue;
-			
-		if (iTeam == GetClientTeam(client))
-		{
-			GetTags(client);
-			bReturn = true;
-		}
-	}
-	while (kv.GotoNextKey());
-	
-	if (bReturn)
-		return;
-	
 	//Check for 'All' entry
 	if (kv.JumpToKey("Default"))
 		GetTags(client);
