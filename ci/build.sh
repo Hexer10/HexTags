@@ -37,6 +37,6 @@ mv addons/sourcemod/configs/hextags.cfg build/addons/sourcemod/configs/hextags.c
 
 
 echo "Compress the plugin"
-cd build/ && zip -9rq ../hextags.zip addons/ LICENSE
+cd build/ && zip -9rq ../hextags.zip addons/ ../LICENSE
 
 echo "Build done"
