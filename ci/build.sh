@@ -25,18 +25,18 @@ if [ -d "addons/sourcemod/plugins" ]; then
 fi
 
 echo "Create clean plugins folder"
-mkdir addons/sourcemod/plugins
-mv addons/sourcemod/scripting/compiled/hextags.smx addons/sourcemod/plugins
+mkdir -p build/addons/sourcemod/scripting/include
+mkdir build/addons/sourcemod/configs
+mkdir build/addons/sourcemod/plugins
 
-echo "Delete sourcemod folders"
-cd addons/sourcemod/
-shopt -s extglob
-rm -rf !(plugins|configs/hextags.cfg)
-cd ..
-rm -rf metamod
-cd ..
+echo "Move plugins files to their folder"
+mv addons/sourcemod/scripting/include/hextags.inc addons/sourcemod/scripting/include
+mv addons/sourcemod/scripting/hextags.sp addons/sourcemod/scripting
+mv addons/sourcemod/scripting/compiled/hextags.smx build/addons/sourcemod/plugins
+mv addons/sourcemod/configs/hextags.cfg build/addons/sourcemod/configs/hextags.cfg
+
 
 echo "Compress the plugin"
-zip -9rq hextags.zip addons LICENSE
+zip -9rq hextags.zip build/addons LICENSE
 
 echo "Build done"
