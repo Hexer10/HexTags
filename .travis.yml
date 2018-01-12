@@ -1,7 +1,6 @@
 addons:
   apt:
     packages:
-    - lftp
     - lib32z1
     - lib32stdc++6
 

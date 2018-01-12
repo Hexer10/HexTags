@@ -31,7 +31,7 @@ mkdir build/addons/sourcemod/plugins
 
 echo "Move plugins files to their folder"
 mv addons/sourcemod/scripting/include/hextags.inc addons/sourcemod/scripting/include
-mv addons/sourcemod/scripting/hextags.sp addons/sourcemod/scripting
+mv addons/sourcemod/scripting/hextags.sp build/addons/sourcemod/scripting
 mv addons/sourcemod/scripting/compiled/hextags.smx build/addons/sourcemod/plugins
 mv addons/sourcemod/configs/hextags.cfg build/addons/sourcemod/configs/hextags.cfg
 
