@@ -77,6 +77,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart()
 {
+	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
+	
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_BAN);
 	
@@ -84,6 +86,7 @@ public void OnPluginStart()
 	
 	if (bLate)
 		for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i)) OnClientPostAdminCheck(i); //LateLoad
+	
 	
 	//Event Hooks
 	HookEvent("player_spawn", Event_CheckTags);
