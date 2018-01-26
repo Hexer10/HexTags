@@ -219,6 +219,9 @@ void LoadTags(int client)
 		
 	if (kv.JumpToKey(steamid))
 	{
+		Call_StartForward(fTagsUpdated);
+		Call_PushCell(client);
+		Call_Finish();
 		GetTags(client);
 		return;
 	}
@@ -228,6 +231,9 @@ void LoadTags(int client)
 	if (kv.JumpToKey(steamid)) //Check again with STEAM_0
 	{
 		GetTags(client);
+		Call_StartForward(fTagsUpdated);
+		Call_PushCell(client);
+		Call_Finish();
 		return;
 	}
 	
@@ -242,6 +248,9 @@ void LoadTags(int client)
 		if (kv.JumpToKey(sGroup))
 		{
 			GetTags(client);
+			Call_StartForward(fTagsUpdated);
+			Call_PushCell(client);
+			Call_Finish();
 			return;
 		}
 	}
@@ -259,6 +268,9 @@ void LoadTags(int client)
 			if (kv.JumpToKey(sFlag))
 			{
 				GetTags(client);
+				Call_StartForward(fTagsUpdated);
+				Call_PushCell(client);
+				Call_Finish();
 				return;
 			}
 		}
@@ -296,7 +308,12 @@ void LoadTags(int client)
 		
 		kv.Rewind();
 		if (bReturn)
+		{
+			Call_StartForward(fTagsUpdated);
+			Call_PushCell(client);
+			Call_Finish();
 			return;
+		}
 	}
 	//Check for 'All' entry
 	if (kv.JumpToKey("Default"))
