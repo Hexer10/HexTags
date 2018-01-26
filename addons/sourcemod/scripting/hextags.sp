@@ -84,13 +84,16 @@ public void OnPluginStart()
 	
 	LoadKv();
 	
+	//LateLoad
 	if (bLate)
-		for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i)) OnClientPostAdminCheck(i); //LateLoad
+	{
+		for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i)) 
+		{
+			OnClientPostAdminCheck(i); 
+			Frame_SetTag(GetClientUserId(i));
+		}
+	}
 	
-	
-	//Event Hooks
-	HookEvent("player_spawn", Event_CheckTags);
-	HookEvent("player_team", Event_CheckTags);
 }
 
 public void OnAllPluginsLoaded()
@@ -110,6 +113,32 @@ public void OnLibraryRemoved(const char[] name)
 		bMostActive = false;
 }
 
+
+//Thanks to https://forums.alliedmods.net/showpost.php?p=2573907&postcount=6
+public Action OnClientCommandKeyValues(int client, KeyValues TagKv)
+{
+    char sKey[64]; 
+     
+    if (!TagKv.GetSectionName(sKey, sizeof(sKey)))
+    	return Plugin_Continue;
+    	
+    if(StrEqual(sKey, "ClanTagChanged"))
+    {
+    	RequestFrame(Frame_SetTag, GetClientUserId(client));
+    }
+
+    return Plugin_Continue; 
+}
+
+public void Frame_SetTag(any iUserID)
+{
+	int client = GetClientOfUserId(iUserID);
+	
+	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
+		CS_SetClientClanTag(client, sTags[client][ScoreTag]);
+}
+
+
 //Commands
 public Action Cmd_ReloadTags(int client, int args)
 {
@@ -127,14 +156,6 @@ public void OnClientPostAdminCheck(int client)
 	
 	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
-}
-
-public void Event_CheckTags(Event event, const char[] name, bool dontBroadcast)
-{
-	int client = GetClientOfUserId(event.GetInt("userid"));
-	
-	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
-		CS_SetClientClanTag(client, sTags[client][ScoreTag]);
 }
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
