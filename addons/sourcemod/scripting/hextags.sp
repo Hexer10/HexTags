@@ -80,7 +80,8 @@ public void OnPluginStart()
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
 	
 	//Reg Cmds
-	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_BAN);
+	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_BAN, "Reload HexTags plugin config");
+	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
 	LoadKv();
 	
@@ -92,8 +93,7 @@ public void OnPluginStart()
 			OnClientPostAdminCheck(i); 
 			Frame_SetTag(GetClientUserId(i));
 		}
-	}
-	
+	}	
 }
 
 public void OnAllPluginsLoaded()
@@ -133,7 +133,7 @@ public Action OnClientCommandKeyValues(int client, KeyValues TagKv)
 public void Frame_SetTag(any iUserID)
 {
 	int client = GetClientOfUserId(iUserID);
-	
+	LoadTags(client);
 	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]);
 }
@@ -146,6 +146,14 @@ public Action Cmd_ReloadTags(int client, int args)
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
 
 	ReplyToCommand(client, "[SM] Tags succesfully reloaded!");
+	return Plugin_Handled;
+}
+
+public Action Cmd_GetTeam(int client, int args)
+{
+	char sTeam[32];
+	GetTeamName(GetClientTeam(client), sTeam, sizeof(sTeam));
+	ReplyToCommand(client, "[SM] Current team name: %s", sTeam);
 	return Plugin_Handled;
 }
 
@@ -315,6 +323,18 @@ void LoadTags(int client)
 			return;
 		}
 	}
+	
+	//Start team checking
+	char sTeam[32];
+	int team = GetClientTeam(client);
+	GetTeamName(team, sTeam, sizeof(sTeam));
+	
+	if (kv.JumpToKey(sTeam))
+	{
+		GetTags(client);
+		return;
+	}
+	
 	//Check for 'All' entry
 	if (kv.JumpToKey("Default"))
 		GetTags(client);
