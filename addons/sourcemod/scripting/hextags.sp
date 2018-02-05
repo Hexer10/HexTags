@@ -23,6 +23,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <chat-processor>
+#include <geoip>
 #include <hextags>
 
 #undef REQUIRE_EXTENSIONS
@@ -180,6 +181,13 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	FormatTime(sTime, sizeof(sTime), "%H:%M");  
 	ReplaceString(sNewName, sizeof(sNewName), "{time}", sTime);
 	ReplaceString(sNewMessage, sizeof(sNewMessage), "{time}", sTime);
+	
+	char sIP[32];
+	char sCountry[3];
+	GetClientIP(author, sIP, sizeof(sIP));
+	GeoipCode2(sIP, sCountry);
+	ReplaceString(sNewName, sizeof(sNewName), "{country}", sTime);
+	ReplaceString(sNewMessage, sizeof(sNewMessage), "{country}", sTime);
 	
 	//Update the name & message
 	strcopy(name, MAXLENGTH_NAME, sNewName);
