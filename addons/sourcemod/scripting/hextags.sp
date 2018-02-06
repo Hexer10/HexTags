@@ -186,8 +186,8 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	char sCountry[3];
 	GetClientIP(author, sIP, sizeof(sIP));
 	GeoipCode2(sIP, sCountry);
-	ReplaceString(sNewName, sizeof(sNewName), "{country}", sTime);
-	ReplaceString(sNewMessage, sizeof(sNewMessage), "{country}", sTime);
+	ReplaceString(sNewName, sizeof(sNewName), "{country}", sCountry);
+	ReplaceString(sNewMessage, sizeof(sNewMessage), "{country}", sCountry);
 	
 	//Update the name & message
 	strcopy(name, MAXLENGTH_NAME, sNewName);
