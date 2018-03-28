@@ -230,6 +230,9 @@ void LoadKv()
 
 void LoadTags(int client)
 {
+	if (!client)
+		return;
+	
 	//Clear the tags when re-checking
 	ResetTags(client);
 	
