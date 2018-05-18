@@ -56,7 +56,7 @@ public Plugin myinfo =
 	author = PLUGIN_AUTHOR,
 	description = "Edit Tags & Colors!",
 	version = PLUGIN_VERSION,
-	url = "csitajb.it"
+	url = "github.com/Hexer10/HexTags"
 };
 
 //Startup
@@ -196,6 +196,46 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	ReplaceString(sNewName, sizeof(sNewName), "{country}", sCountry);
 	ReplaceString(sNewMessage, sizeof(sNewMessage), "{country}", sCountry);
 	
+	//Rainbow Chat
+	if (StrEqual(sTags[author][ChatColor], "{rainbow}", false))
+	{
+		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rainbow}", "");
+		char sTemp[MAXLENGTH_MESSAGE]; 
+		
+		int sub = -1;
+		for(int i = 0; i < strlen(sNewMessage); i++)
+		{
+			if (sNewMessage[i] == ' ')
+			{
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sNewMessage[i]);
+				sub++;
+				continue;
+			}
+			Format(sTemp, sizeof(sTemp), "%s%c%c", sTemp, GetColor(i-sub), sNewMessage[i]);
+		}
+		
+		Format(sNewMessage, MAXLENGTH_MESSAGE, "%s", sTemp); 
+	}
+	
+	//Random Chat
+	if (StrEqual(sTags[author][ChatColor], "{random}", false))
+	{
+		ReplaceString(sNewMessage, sizeof(sNewMessage), "{random}", "");
+		char sTemp[MAXLENGTH_MESSAGE]; 
+		
+		for(int i = 0; i < strlen(sNewMessage); i++)
+		{
+			if (sNewMessage[i] == ' ')
+			{
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sNewMessage[i]);
+				continue;
+			}
+			Format(sTemp, sizeof(sTemp), "%s%c%c", sTemp, GetRandomColor(), sNewMessage[i]);
+		}
+		
+		Format(sNewMessage, MAXLENGTH_MESSAGE, "%s", sTemp); 
+	}
+		
 	//Update the name & message
 	strcopy(name, MAXLENGTH_NAME, sNewName);
 	strcopy(message, MAXLENGTH_MESSAGE, sNewMessage);
@@ -205,7 +245,6 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	
 	return Plugin_Changed;
 }
-
 
 //Functions
 void LoadKv()
@@ -385,6 +424,48 @@ bool IsCS()
 	EngineVersion engine = GetEngineVersion();
 	
 	return (engine == Engine_CSGO || engine == Engine_CSS);
+}
+
+int GetRandomColor()
+{
+	switch(GetRandomInt(1, 16))
+	{
+		case  1: return '\x01';
+		case  2: return '\x02';
+		case  3: return '\x03';
+		case  4: return '\x03';
+		case  5: return '\x04';
+		case  6: return '\x05';
+		case  7: return '\x06';
+		case  8: return '\x07';
+		case  9: return '\x08';
+		case 10: return '\x09';
+		case 11: return '\x10';
+		case 12: return '\x0A';
+		case 13: return '\x0B';
+		case 14: return '\x0C';
+		case 15: return '\x0E';
+		case 16: return '\x0F';
+	}
+	return '\01';
+}
+
+int GetColor(int color)
+{
+	while(color > 7)
+		color -= 7;
+		
+	switch(color)
+	{
+		case  1: return '\x02';
+		case  2: return '\x10';
+		case  3: return '\x09';
+		case  4: return '\x06';
+		case  5: return '\x0B';
+		case  6: return '\x0C';
+		case  7: return '\x0E';
+	}
+	return '\x01';
 }
 
 //API
