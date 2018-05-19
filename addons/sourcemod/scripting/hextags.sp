@@ -505,6 +505,8 @@ public int Native_SetClientTag(Handle plugin, int numParams)
 	eTags Tag = view_as<eTags>(GetNativeCell(2));
 	GetNativeString(3, sTag, sizeof(sTag));
 	
+	
+	ReplaceString(sTag, sizeof(sTag), "{darkgray}", "{gray2}");
 	strcopy(sTags[client][Tag], sizeof(sTags[][]), sTag);
 	return 0;
 }
