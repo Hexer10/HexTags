@@ -139,6 +139,10 @@ public void Frame_SetTag(any iUserID)
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]);
 }
 
+public void OnClientDisconnect(int client)
+{
+	ResetTags(client);
+}
 
 //Commands
 public Action Cmd_ReloadTags(int client, int args)
