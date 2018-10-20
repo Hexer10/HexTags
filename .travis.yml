@@ -8,9 +8,18 @@ language: c
 
 sudo: false
 
+env:
+  - VERSION=1.8
+  - VERSION=1.9
+  - VERSION=1.10
+
+ matrix:
+  allow_failures:
+    - env: VERSION=1.10
+  
 script:
-- if [[ $TRAVIS_PULL_REQUEST != "false" ]]; then bash ci/test.sh; fi
-- if [[ $TRAVIS_PULL_REQUEST == "false" ]]; then bash ci/build.sh $TRAVIS_TAG; fi
+- 'if [[ $TRAVIS_TAG != "" ]]; then bash ci/build.sh $VERSION $TRAVIS_TAG; else bash ci/test.sh $VERSION; fi'
+
 
 notifications:
   email: false
@@ -25,3 +34,4 @@ deploy:
     branch: master
     tags: true
     repo: Hexer10/HexTags
+    condition: $VERSION = 1.9
