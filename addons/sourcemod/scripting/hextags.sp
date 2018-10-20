@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
- 
+
 #include <sourcemod>
 #include <sdktools>
 #include <chat-processor>
@@ -41,6 +41,8 @@
 #pragma newdecls required
 
 Handle fTagsUpdated;
+Handle fMessageProcess;
+Handle fMessageProcessed;
 
 bool bLate;
 bool bMostActive;
@@ -64,12 +66,16 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 {
 	//API
 	RegPluginLibrary("hextags");
-
+	
 	CreateNative("HexTags_GetClientTag", Native_GetClientTag);
 	CreateNative("HexTags_SetClientTag", Native_SetClientTag);
 	CreateNative("HexTags_ResetClientTag", Native_ResetClientTags);
 	
 	fTagsUpdated = CreateGlobalForward("HexTags_OnTagsUpdated", ET_Ignore, Param_Cell);
+	
+	fMessageProcess = CreateGlobalForward("HexTags_OnMessageProcess", ET_Single, Param_Cell, Param_String, Param_Cell, Param_String, Param_Cell);
+	fMessageProcessed = CreateGlobalForward("HexTags_OnMessageProcessed", ET_Ignore, Param_Cell, Param_String, Param_String);
+	
 	
 	//LateLoad
 	bLate = late;
@@ -118,17 +124,17 @@ public void OnLibraryRemoved(const char[] name)
 //Thanks to https://forums.alliedmods.net/showpost.php?p=2573907&postcount=6
 public Action OnClientCommandKeyValues(int client, KeyValues TagKv)
 {
-    char sKey[64]; 
-     
-    if (!TagKv.GetSectionName(sKey, sizeof(sKey)))
-    	return Plugin_Continue;
-    	
-    if(StrEqual(sKey, "ClanTagChanged"))
-    {
-    	RequestFrame(Frame_SetTag, GetClientUserId(client));
-    }
-
-    return Plugin_Continue; 
+	char sKey[64]; 
+	
+	if (!TagKv.GetSectionName(sKey, sizeof(sKey)))
+		return Plugin_Continue;
+	
+	if(StrEqual(sKey, "ClanTagChanged"))
+	{
+		RequestFrame(Frame_SetTag, GetClientUserId(client));
+	}
+	
+	return Plugin_Continue; 
 }
 
 public void Frame_SetTag(any iUserID)
@@ -149,7 +155,7 @@ public Action Cmd_ReloadTags(int client, int args)
 {
 	LoadKv();
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
-
+	
 	ReplyToCommand(client, "[SM] Tags succesfully reloaded!");
 	return Plugin_Handled;
 }
@@ -239,13 +245,50 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 		
 		Format(sNewMessage, MAXLENGTH_MESSAGE, "%s", sTemp); 
 	}
-		
-	//Update the name & message
-	strcopy(name, MAXLENGTH_NAME, sNewName);
-	strcopy(message, MAXLENGTH_MESSAGE, sNewMessage);
+	
+	char sPassedName[MAXLENGTH_NAME];
+	char sPassedMessage[MAXLENGTH_NAME];
+	sPassedName = sNewName;
+	sPassedMessage = sNewMessage;
+	
+	
+	Action result = Plugin_Continue;
+	//Call the forward
+	Call_StartForward(fMessageProcess);
+	Call_PushCell(author);
+	Call_PushStringEx(sPassedName, sizeof(sPassedName), SM_PARAM_STRING_UTF8|SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
+	Call_PushCell(sizeof(sPassedName));
+	Call_PushStringEx(sPassedMessage, sizeof(sPassedMessage), SM_PARAM_STRING_UTF8|SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
+	Call_PushCell(sizeof(sPassedMessage));
+	Call_Finish(result);
+	
+	if (result == Plugin_Continue)
+	{
+    	//Update the name & message
+		strcopy(name, MAXLENGTH_NAME, sNewName);
+		strcopy(message, MAXLENGTH_MESSAGE, sNewMessage);
+	}
+	else if (result == Plugin_Changed)
+	{
+    	//Update the name & message
+		strcopy(name, MAXLENGTH_NAME, sPassedName);
+		strcopy(message, MAXLENGTH_MESSAGE, sPassedMessage);
+	}
+	else
+	{
+		return Plugin_Continue;
+	}
 	
 	processcolors = true;
 	removecolors = false;
+	
+	
+	//Call the (post)forward
+	Call_StartForward(fMessageProcessed);
+	Call_PushCell(author);
+	Call_PushString(sPassedName);
+	Call_PushString(sPassedMessage);
+	Call_Finish();
 	
 	return Plugin_Changed;
 }
@@ -261,12 +304,12 @@ void LoadKv()
 	
 	if (kv != null)
 		delete kv;
-		
+	
 	kv = new KeyValues("HexTags"); //Create the kv
 	
 	if (!kv.ImportFromFile(sConfig))
 		SetFailState("Couldn't import: \"%s\"", sConfig); //Check if file was imported properly
-		
+	
 	if (!kv.GotoFirstSubKey())
 		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entry
 }
@@ -285,7 +328,7 @@ void LoadTags(int client)
 	char steamid[32];
 	if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
 		return;
-		
+	
 	if (kv.JumpToKey(steamid))
 	{
 		Call_StartForward(fTagsUpdated);
@@ -357,15 +400,15 @@ void LoadTags(int client)
 		{
 			char sSecs[16];
 			kv.GetSectionName(sSecs, sizeof(sSecs));
-
+			
 			if (sSecs[0] != '#') //Check if it's a "time-format"
 				continue;
 			
 			Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
-
+			
 			if (iOldTime >= StringToInt(sSecs)) //Select only the higher time.
 				continue;
-
+			
 			if (StringToInt(sSecs) <= MostActive_GetPlayTimeTotal(client))
 			{
 				GetTags(client);
@@ -399,7 +442,7 @@ void LoadTags(int client)
 	//Check for 'All' entry
 	if (kv.JumpToKey("Default"))
 		GetTags(client);
-		
+	
 	//Call the forward
 	Call_StartForward(fTagsUpdated);
 	Call_PushCell(client);
@@ -458,7 +501,7 @@ int GetColor(int color)
 {
 	while(color > 7)
 		color -= 7;
-		
+	
 	switch(color)
 	{
 		case  1: return '\x02';
@@ -479,7 +522,7 @@ public int Native_GetClientTag(Handle plugin, int numParams)
 	
 	if (client < 1 || client > MaxClients)
 	{
-    	return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
+		return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
 	}
 	if (!IsClientConnected(client))
 	{
@@ -498,7 +541,7 @@ public int Native_SetClientTag(Handle plugin, int numParams)
 	
 	if (client < 1 || client > MaxClients)
 	{
-    	return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
+		return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
 	}
 	if (!IsClientConnected(client))
 	{
@@ -521,7 +564,7 @@ public int Native_ResetClientTags(Handle plugin, int numParams)
 	
 	if (client < 1 || client > MaxClients)
 	{
-    	return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
+		return ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index (%d)", client);
 	}
 	if (!IsClientConnected(client))
 	{
