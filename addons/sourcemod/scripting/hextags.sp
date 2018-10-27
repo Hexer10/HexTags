@@ -30,6 +30,7 @@
 #undef REQUIRE_PLUGIN
 #include <mostactive>
 #include <cstrike>
+#include <rankme>
 #define REQUIRE_EXTENSIONS
 #define REQUIRE_PLUGIN
 
@@ -170,6 +171,22 @@ public Action Cmd_GetTeam(int client, int args)
 
 //Events
 public void OnClientPostAdminCheck(int client)
+{
+	LoadTags(client);
+	
+	//Update params
+	char sIP[32];
+	char sCountry[3];
+	GetClientIP(client, sIP, sizeof(sIP));
+	GeoipCode2(sIP, sCountry);
+	ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
+	
+	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
+		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
+}
+
+//Temp Fix https://github.com/Hexer10/HexTags/issues/10
+public void OnClientPutInServer(int client)
 {
 	LoadTags(client);
 	
