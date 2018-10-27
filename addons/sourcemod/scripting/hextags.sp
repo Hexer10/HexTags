@@ -314,7 +314,7 @@ void LoadKv()
 		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entry
 }
 
-void LoadTags(int client)
+void LoadTags(int client, bool sub = false)
 {
 	if (!client)
 		return;
@@ -322,7 +322,8 @@ void LoadTags(int client)
 	//Clear the tags when re-checking
 	ResetTags(client);
 	
-	kv.Rewind();
+	if (!sub)
+		kv.Rewind();
 	
 	//Check steamid checking
 	char steamid[32];
@@ -331,10 +332,7 @@ void LoadTags(int client)
 	
 	if (kv.JumpToKey(steamid))
 	{
-		Call_StartForward(fTagsUpdated);
-		Call_PushCell(client);
-		Call_Finish();
-		GetTags(client);
+		GetTags(client, false);
 		return;
 	}
 	
@@ -343,9 +341,6 @@ void LoadTags(int client)
 	if (kv.JumpToKey(steamid)) //Check again with STEAM_0
 	{
 		GetTags(client);
-		Call_StartForward(fTagsUpdated);
-		Call_PushCell(client);
-		Call_Finish();
 		return;
 	}
 	
@@ -360,9 +355,6 @@ void LoadTags(int client)
 		if (kv.JumpToKey(sGroup))
 		{
 			GetTags(client);
-			Call_StartForward(fTagsUpdated);
-			Call_PushCell(client);
-			Call_Finish();
 			return;
 		}
 	}
@@ -380,9 +372,6 @@ void LoadTags(int client)
 			if (kv.JumpToKey(sFlag))
 			{
 				GetTags(client);
-				Call_StartForward(fTagsUpdated);
-				Call_PushCell(client);
-				Call_Finish();
 				return;
 			}
 		}
@@ -411,7 +400,7 @@ void LoadTags(int client)
 			
 			if (StringToInt(sSecs) <= MostActive_GetPlayTimeTotal(client))
 			{
-				GetTags(client);
+				GetTags(client, false);
 				iOldTime = StringToInt(sSecs); //Save the time
 				bReturn = true; 
 			}
@@ -441,17 +430,27 @@ void LoadTags(int client)
 	
 	//Check for 'All' entry
 	if (kv.JumpToKey("Default"))
+	{
 		GetTags(client);
-	
-	//Call the forward
-	Call_StartForward(fTagsUpdated);
-	Call_PushCell(client);
-	Call_Finish();
+		return;
+	}
+	GetTags(client, _, true);
 }
 
 //Stocks
-void GetTags(int client)
+void GetTags(int client, bool call = true, bool final = false)
 {
+	if (!final)
+	{
+		LoadTags(client, true);
+		return;
+	}
+	if (call)
+	{
+		Call_StartForward(fTagsUpdated);
+		Call_PushCell(client);
+		Call_Finish();
+	}
 	kv.GetString("ScoreTag", sTags[client][ScoreTag], sizeof(sTags[][]), "");
 	kv.GetString("ChatTag", sTags[client][ChatTag], sizeof(sTags[][]), "");
 	kv.GetString("ChatColor", sTags[client][ChatColor], sizeof(sTags[][]), "");
