@@ -19,11 +19,13 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
+//#define DEBUG 1
 
 #include <sourcemod>
 #include <sdktools>
 #include <chat-processor>
 #include <geoip>
+#include <hexstocks>
 #include <hextags>
 
 #undef REQUIRE_EXTENSIONS
@@ -37,7 +39,6 @@
 #define PLUGIN_AUTHOR         "Hexah"
 #define PLUGIN_VERSION        "<TAG>"
 
-
 #pragma semicolon 1
 #pragma newdecls required
 
@@ -45,10 +46,15 @@ Handle fTagsUpdated;
 Handle fMessageProcess;
 Handle fMessageProcessed;
 
+bool bCSGO;
 bool bLate;
 bool bMostActive;
+bool bRankme;
+
+int iRank[MAXPLAYERS+1] = {-1, ...};
 
 char sTags[MAXPLAYERS+1][eTags][128];
+bool bForceTag[MAXPLAYERS+1];
 
 KeyValues kv;
 
@@ -77,6 +83,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	fMessageProcess = CreateGlobalForward("HexTags_OnMessageProcess", ET_Single, Param_Cell, Param_String, Param_Cell, Param_String, Param_Cell);
 	fMessageProcessed = CreateGlobalForward("HexTags_OnMessageProcessed", ET_Ignore, Param_Cell, Param_String, Param_String);
 	
+	EngineVersion engine = GetEngineVersion();
+	bCSGO = (engine == Engine_CSGO || engine == Engine_CSS);
 	
 	//LateLoad
 	bLate = late;
@@ -101,24 +109,35 @@ public void OnPluginStart()
 			OnClientPostAdminCheck(i); 
 			Frame_SetTag(GetClientUserId(i));
 		}
-	}	
+	}
+	
+	//Timers
+	if (bCSGO)
+		CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
 }
 
 public void OnAllPluginsLoaded()
 {
 	bMostActive = LibraryExists("mostactive");
+	bRankme = LibraryExists("rankme");
+	if (FindPluginByFile("custom-chatcolors-cp.smx") || LibraryExists("ccc"))
+		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
 }
 
 public void OnLibraryAdded(const char[] name)
 {
 	if (StrEqual(name, "mostactive"))
 		bMostActive = true;
+	if (StrEqual(name, "rankme"))
+		bRankme = true;
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
 	if (StrEqual(name, "mostactive"))
 		bMostActive = false;
+	if (StrEqual(name, "rankme"))
+		bRankme = false;
 }
 
 
@@ -130,6 +149,7 @@ public Action OnClientCommandKeyValues(int client, KeyValues TagKv)
 	if (!TagKv.GetSectionName(sKey, sizeof(sKey)))
 		return Plugin_Continue;
 	
+	//TODO: Set the key value tag instead of requesting the frame.
 	if(StrEqual(sKey, "ClanTagChanged"))
 	{
 		RequestFrame(Frame_SetTag, GetClientUserId(client));
@@ -142,7 +162,18 @@ public void Frame_SetTag(any iUserID)
 {
 	int client = GetClientOfUserId(iUserID);
 	LoadTags(client);
-	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
+	
+	//Update params
+	if (StrContains(sTags[client][ScoreTag], "{country}") != -1)
+	{
+		char sIP[32];
+		char sCountry[3];
+		GetClientIP(client, sIP, sizeof(sIP));
+		GeoipCode2(sIP, sCountry);
+		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
+	}
+	
+	if (strlen(sTags[client][ScoreTag]) > 0 && bCSGO)
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]);
 }
 
@@ -174,32 +205,25 @@ public void OnClientPostAdminCheck(int client)
 {
 	LoadTags(client);
 	
-	//Update params
-	char sIP[32];
-	char sCountry[3];
-	GetClientIP(client, sIP, sizeof(sIP));
-	GeoipCode2(sIP, sCountry);
-	ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
+	if (bRankme)
+		RankMe_GetRank(client, RankMe_CheckRank);
 	
-	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
+	//Update params
+	if (StrContains(sTags[client][ScoreTag], "{country}") != -1)
+	{
+		char sIP[32];
+		char sCountry[3];
+		bool ip = GetClientIP(client, sIP, sizeof(sIP));
+		if (!ip)
+			LogError("Unable to get IP on postadmin check!");
+		GeoipCode2(sIP, sCountry);
+		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
+	}
+	
+	if (strlen(sTags[client][ScoreTag]) > 0 && bCSGO)
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
 }
 
-//Temp Fix https://github.com/Hexer10/HexTags/issues/10
-public void OnClientPutInServer(int client)
-{
-	LoadTags(client);
-	
-	//Update params
-	char sIP[32];
-	char sCountry[3];
-	GetClientIP(client, sIP, sizeof(sIP));
-	GeoipCode2(sIP, sCountry);
-	ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
-	
-	if (strlen(sTags[client][ScoreTag]) > 0 && IsCS())
-		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
-}
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
@@ -310,6 +334,11 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	return Plugin_Changed;
 }
 
+public int RankMe_CheckRank(int client, int rank, any data)
+{
+	LoadTags(client);
+}
+
 //Functions
 void LoadKv()
 {
@@ -328,7 +357,7 @@ void LoadKv()
 		SetFailState("Couldn't import: \"%s\"", sConfig); //Check if file was imported properly
 	
 	if (!kv.GotoFirstSubKey())
-		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entry
+		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entries
 }
 
 void LoadTags(int client, bool sub = false)
@@ -353,9 +382,14 @@ void LoadTags(int client, bool sub = false)
 		return;
 	}
 	
-	steamid[6] = '0'; //Replace the STEAM_1 to STEAM_0
-	
-	if (kv.JumpToKey(steamid)) //Check again with STEAM_0
+	//Replace the STEAM_1 to STEAM_0 or viceversa
+	if (steamid[6] == '1')
+		steamid[6] = '0'; 
+	else
+		steamid[6] = '1';
+		
+	//Check again with STEAM_0/STEAM_1
+	if (kv.JumpToKey(steamid)) 
 	{
 		GetTags(client);
 		return;
@@ -417,7 +451,7 @@ void LoadTags(int client, bool sub = false)
 			
 			if (StringToInt(sSecs) <= MostActive_GetPlayTimeTotal(client))
 			{
-				GetTags(client, false);
+				GetTags(client);
 				iOldTime = StringToInt(sSecs); //Save the time
 				bReturn = true; 
 			}
@@ -426,12 +460,40 @@ void LoadTags(int client, bool sub = false)
 		
 		kv.Rewind();
 		if (bReturn)
-		{
-			Call_StartForward(fTagsUpdated);
-			Call_PushCell(client);
-			Call_Finish();
 			return;
+	}
+	if (bRankme && iRank[client] != -1)
+	{
+		int iOldRank;
+		bool bReturn;
+		
+		if (!kv.GotoFirstSubKey())
+			return;
+		do
+		{
+			char sSecs[16];
+			kv.GetSectionName(sSecs, sizeof(sSecs));
+			
+			if (sSecs[0] != '!') //Check if it's a "time-format"
+				continue;
+			
+			Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
+			
+			if (iOldRank >= StringToInt(sSecs)) //Select only the higher time.
+				continue;
+			
+			if (StringToInt(sSecs) <= iRank[client])
+			{
+				GetTags(client);
+				iOldRank = StringToInt(sSecs); //Save the time
+				bReturn = true; 
+			}
 		}
+		while (kv.GotoNextKey());
+		
+		kv.Rewind();
+		if (bReturn)
+			return;
 	}
 	
 	//Start team checking
@@ -446,32 +508,51 @@ void LoadTags(int client, bool sub = false)
 	}
 	
 	//Check for 'All' entry
+	//Mark as depreaced
 	if (kv.JumpToKey("Default"))
 	{
 		GetTags(client);
 		return;
 	}
-	GetTags(client, _, true);
+	GetTags(client, true);
+}
+
+//Timers
+public Action Timer_ForceTag(Handle timer)
+{
+	if (!bCSGO)
+		return;
+		
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && bForceTag[i] && strlen(sTags[i][ScoreTag]) > 0)
+	{
+		char sTag[32];
+		CS_GetClientClanTag(i, sTag, sizeof(sTag));
+		if (StrEqual(sTag, sTags[i][ScoreTag]))
+			continue;
+			
+		LogMessage("%L was changed by an external plugin, forcing him back to the HexTags' default one!", i, sTag);
+		CS_SetClientClanTag(i, sTags[i][ScoreTag]);
+	}
 }
 
 //Stocks
-void GetTags(int client, bool call = true, bool final = false)
+void GetTags(int client, bool final = false)
 {
 	if (!final)
 	{
 		LoadTags(client, true);
 		return;
 	}
-	if (call)
-	{
-		Call_StartForward(fTagsUpdated);
-		Call_PushCell(client);
-		Call_Finish();
-	}
+	
+	Call_StartForward(fTagsUpdated);
+	Call_PushCell(client);
+	Call_Finish();
+	
 	kv.GetString("ScoreTag", sTags[client][ScoreTag], sizeof(sTags[][]), "");
 	kv.GetString("ChatTag", sTags[client][ChatTag], sizeof(sTags[][]), "");
 	kv.GetString("ChatColor", sTags[client][ChatColor], sizeof(sTags[][]), "");
 	kv.GetString("NameColor", sTags[client][NameColor], sizeof(sTags[][]), "{teamcolor}");
+	bForceTag[client] = kv.GetNum("ForceTag", 1) == 1;
 }
 
 void ResetTags(int client)
@@ -480,13 +561,7 @@ void ResetTags(int client)
 	strcopy(sTags[client][ChatTag], sizeof(sTags[][]), "");
 	strcopy(sTags[client][ChatColor], sizeof(sTags[][]), "");
 	strcopy(sTags[client][NameColor], sizeof(sTags[][]), "");
-}
-
-bool IsCS()
-{
-	EngineVersion engine = GetEngineVersion();
-	
-	return (engine == Engine_CSGO || engine == Engine_CSS);
+	bForceTag[client] = true;
 }
 
 int GetRandomColor()
