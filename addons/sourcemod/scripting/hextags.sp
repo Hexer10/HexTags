@@ -58,6 +58,8 @@ bool bForceTag[MAXPLAYERS+1];
 
 KeyValues kv;
 
+DataPack dataOrder;
+
 //Plugin infos
 public Plugin myinfo =
 {
@@ -127,17 +129,29 @@ public void OnAllPluginsLoaded()
 public void OnLibraryAdded(const char[] name)
 {
 	if (StrEqual(name, "mostactive"))
+	{
 		bMostActive = true;
-	if (StrEqual(name, "rankme"))
+		LoadKv();
+	}
+	else if (StrEqual(name, "rankme"))
+	{
 		bRankme = true;
+		LoadKv();
+	}
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
 	if (StrEqual(name, "mostactive"))
+	{
 		bMostActive = false;
-	if (StrEqual(name, "rankme"))
+		LoadKv();
+	}
+	else if (StrEqual(name, "rankme"))
+	{
 		bRankme = false;
+		LoadKv();
+	}
 }
 
 
@@ -343,6 +357,28 @@ public int RankMe_CheckRank(int client, int rank, any data)
 void LoadKv()
 {
 	char sConfig[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sConfig, sizeof(sConfig), "configs/hextags-order.txt"); //Get cfg file
+	
+	if (!FileExists(sConfig))
+	{
+		File file = OpenFile(sConfig, "wt");
+		if (file == null)
+			SetFailState("Failed to created: \"%s\"", sConfig); //Check if cfg exist
+			
+		file.WriteLine("SteamID");
+		file.WriteLine("AdminGroup");
+		file.WriteLine("AdminFlags");
+		file.WriteLine("ActiveTime");
+		file.WriteLine("RankMe");
+		file.WriteLine("Team");
+		delete file;
+	}
+	
+	File file = OpenFile(sConfig, "rt");
+	if (file == null)
+		SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
+		
+	GetOrder(file);
 	BuildPath(Path_SM, sConfig, sizeof(sConfig), "configs/hextags.cfg"); //Get cfg file
 	
 	if (OpenFile(sConfig, "rt") == null)
@@ -371,142 +407,17 @@ void LoadTags(int client, bool sub = false)
 	if (!sub)
 		kv.Rewind();
 	
-	//Check steamid checking
-	char steamid[32];
-	if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
-		return;
-	
-	if (kv.JumpToKey(steamid))
+	dataOrder.Reset();
+	while(dataOrder.IsReadable(1))
 	{
-		GetTags(client, false);
-		return;
-	}
-	
-	//Replace the STEAM_1 to STEAM_0 or viceversa
-	if (steamid[6] == '1')
-		steamid[6] = '0'; 
-	else
-		steamid[6] = '1';
-		
-	//Check again with STEAM_0/STEAM_1
-	if (kv.JumpToKey(steamid)) 
-	{
-		GetTags(client);
-		return;
-	}
-	
-	//Start AdminGroups checking
-	AdminId admin = GetUserAdmin(client);
-	if (admin != INVALID_ADMIN_ID)
-	{
-		char sGroup[32];
-		admin.GetGroup(0, sGroup, sizeof(sGroup));
-		Format(sGroup, sizeof(sGroup), "@%s", sGroup);
-		
-		if (kv.JumpToKey(sGroup))
-		{
-			GetTags(client);
-			return;
-		}
-	}
-	
-	//Start flags checking
-	char sFlags[21] = "abcdefghijklmnopqrstz";
-	
-	for (int i = sizeof(sFlags)-1; 0 <= i; i--)
-	{
-		char sFlag[1];
-		sFlag[0] = sFlags[i];
-		
-		if (ReadFlagString(sFlag) & GetUserFlagBits(client))
-		{
-			if (kv.JumpToKey(sFlag))
-			{
-				GetTags(client);
-				return;
-			}
-		}
-	}
-	
-	//Start total play-time checking
-	if (bMostActive)
-	{
-		int iOldTime;
-		bool bReturn;
-		
-		if (!kv.GotoFirstSubKey())
-			return;
-		do
-		{
-			char sSecs[16];
-			kv.GetSectionName(sSecs, sizeof(sSecs));
-			
-			if (sSecs[0] != '#') //Check if it's a "time-format"
-				continue;
-			
-			Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
-			
-			if (iOldTime >= StringToInt(sSecs)) //Select only the higher time.
-				continue;
-			
-			if (StringToInt(sSecs) <= MostActive_GetPlayTimeTotal(client))
-			{
-				GetTags(client);
-				iOldTime = StringToInt(sSecs); //Save the time
-				bReturn = true; 
-			}
-		}
-		while (kv.GotoNextKey());
-		
-		kv.Rewind();
-		if (bReturn)
+		bool res;
+		Function func = dataOrder.ReadFunction();
+		Call_StartFunction(INVALID_HANDLE, func);
+		Call_PushCell(client);
+		Call_Finish(res);
+		if (res)
 			return;
 	}
-	if (bRankme && iRank[client] != -1)
-	{
-		int iOldRank;
-		bool bReturn;
-		
-		if (!kv.GotoFirstSubKey())
-			return;
-		do
-		{
-			char sSecs[16];
-			kv.GetSectionName(sSecs, sizeof(sSecs));
-			
-			if (sSecs[0] != '!') //Check if it's a "time-format"
-				continue;
-			
-			Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
-			
-			if (iOldRank >= StringToInt(sSecs)) //Select only the higher time.
-				continue;
-			
-			if (StringToInt(sSecs) <= iRank[client])
-			{
-				GetTags(client);
-				iOldRank = StringToInt(sSecs); //Save the time
-				bReturn = true; 
-			}
-		}
-		while (kv.GotoNextKey());
-		
-		kv.Rewind();
-		if (bReturn)
-			return;
-	}
-	
-	//Start team checking
-	char sTeam[32];
-	int team = GetClientTeam(client);
-	GetTeamName(team, sTeam, sizeof(sTeam));
-	
-	if (kv.JumpToKey(sTeam))
-	{
-		GetTags(client);
-		return;
-	}
-	
 	//Check for 'All' entry
 	//Mark as depreaced
 	if (kv.JumpToKey("Default"))
@@ -522,19 +433,169 @@ public Action Timer_ForceTag(Handle timer)
 {
 	if (!bCSGO)
 		return;
-		
+	
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && bForceTag[i] && strlen(sTags[i][ScoreTag]) > 0)
 	{
 		char sTag[32];
 		CS_GetClientClanTag(i, sTag, sizeof(sTag));
 		if (StrEqual(sTag, sTags[i][ScoreTag]))
 			continue;
-			
+		
 		LogMessage("%L was changed by an external plugin, forcing him back to the HexTags' default one!", i, sTag);
 		CS_SetClientClanTag(i, sTags[i][ScoreTag]);
 	}
 }
 
+//Tags selectors.
+bool Select_SteamID(int client)
+{
+	char steamid[32];
+	if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
+		return false;
+	
+	if (kv.JumpToKey(steamid))
+	{
+		GetTags(client, false);
+		return true;
+	}
+	
+	//Replace the STEAM_1 to STEAM_0 or viceversa
+	if (steamid[6] == '1')
+		steamid[6] = '0'; 
+	else
+		steamid[6] = '1';
+	
+	//Check again with STEAM_0/STEAM_1
+	if (kv.JumpToKey(steamid)) 
+	{
+		GetTags(client);
+		return true;
+	}
+	return false;
+}
+
+bool Select_AdminGroup(int client)
+{
+	AdminId admin = GetUserAdmin(client);
+	if (admin != INVALID_ADMIN_ID)
+	{
+		char sGroup[32];
+		admin.GetGroup(0, sGroup, sizeof(sGroup));
+		Format(sGroup, sizeof(sGroup), "@%s", sGroup);
+		
+		if (kv.JumpToKey(sGroup))
+		{
+			GetTags(client);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool Select_Flags(int client)
+{
+	static char sFlags[21] = "abcdefghijklmnopqrstz";
+	
+	for (int i = sizeof(sFlags)-1; 0 <= i; i--)
+	{
+		char sFlag[1];
+		sFlag[0] = sFlags[i];
+		
+		if (ReadFlagString(sFlag) & GetUserFlagBits(client))
+		{
+			if (kv.JumpToKey(sFlag))
+			{
+				GetTags(client);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool Select_Time(int client)
+{
+	int iOldTime;
+	bool bReturn;
+	
+	if (!kv.GotoFirstSubKey())
+		return false;
+	do
+	{
+		char sSecs[16];
+		kv.GetSectionName(sSecs, sizeof(sSecs));
+		
+		if (sSecs[0] != '#') //Check if it's a "time-format"
+			continue;
+		
+		Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
+		
+		if (iOldTime >= StringToInt(sSecs)) //Select only the higher time.
+			continue;
+		
+		if (StringToInt(sSecs) <= MostActive_GetPlayTimeTotal(client))
+		{
+			GetTags(client);
+			iOldTime = StringToInt(sSecs); //Save the time
+			bReturn = true; 
+		}
+	}
+	while (kv.GotoNextKey());
+	
+	if (bReturn)
+		return true;
+	
+	return false;
+}
+
+bool Select_Rankme(int client)
+{
+	int iOldRank;
+	bool bReturn;
+	
+	if (!kv.GotoFirstSubKey())
+		return false;
+	do
+	{
+		char sSecs[16];
+		kv.GetSectionName(sSecs, sizeof(sSecs));
+		
+		if (sSecs[0] != '!') //Check if it's a "time-format"
+			continue;
+		
+		Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
+		
+		if (iOldRank >= StringToInt(sSecs)) //Select only the higher time.
+			continue;
+		
+		if (StringToInt(sSecs) <= iRank[client])
+		{
+			GetTags(client);
+			iOldRank = StringToInt(sSecs); //Save the time
+			bReturn = true; 
+		}
+	}
+	while (kv.GotoNextKey());
+	
+	if (bReturn)
+		return true;
+
+	return false;
+}
+
+bool Select_Team(int client)
+{
+	char sTeam[32];
+	int team = GetClientTeam(client);
+	GetTeamName(team, sTeam, sizeof(sTeam));
+	
+	if (kv.JumpToKey(sTeam))
+	{
+		GetTags(client);
+		return true;
+	}
+	return false;
+}
 //Stocks
 void GetTags(int client, bool final = false)
 {
@@ -562,6 +623,57 @@ void ResetTags(int client)
 	strcopy(sTags[client][ChatColor], sizeof(sTags[][]), "");
 	strcopy(sTags[client][NameColor], sizeof(sTags[][]), "");
 	bForceTag[client] = true;
+}
+
+void GetOrder(File file)
+{
+	if (dataOrder != null)
+		delete dataOrder;
+		
+	dataOrder = new DataPack();
+	char sLine[32];
+	while(file.ReadLine(sLine, sizeof(sLine)))
+	{
+		TrimString(sLine);
+		if (StrEqual(sLine, "SteamID", false))
+		{
+			dataOrder.WriteFunction(Select_SteamID);
+		}
+		else if (StrEqual(sLine, "AdminGroup", false))
+		{
+			dataOrder.WriteFunction(Select_AdminGroup);
+		}
+		else if (StrEqual(sLine, "AdminFlags", false))
+		{
+			dataOrder.WriteFunction(Select_Flags);
+		}
+		else if (StrEqual(sLine, "ActiveTime", false))
+		{
+			if (!bMostActive)
+			{
+				LogMessage("Disabling MostActive support...");
+				continue;
+			}
+			dataOrder.WriteFunction(Select_Time);
+		}
+		else if (StrEqual(sLine, "RankMe", false))
+		{
+			if (!bRankme)
+			{
+				LogMessage("Disabling RankMe support...");
+				continue;
+			}
+			dataOrder.WriteFunction(Select_Rankme);
+		}
+		else if (StrEqual(sLine, "Team", false))
+		{
+			dataOrder.WriteFunction(Select_Team);
+		}
+		else
+		{
+			LogError("Invalid selector: %s", sLine);
+		}
+	}
 }
 
 int GetRandomColor()
