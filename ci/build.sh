@@ -35,6 +35,7 @@ mv addons/sourcemod/scripting/include/hextags.inc build/addons/sourcemod/scripti
 mv addons/sourcemod/scripting/hextags.sp build/addons/sourcemod/scripting
 mv addons/sourcemod/scripting/compiled/hextags.smx build/addons/sourcemod/plugins
 mv addons/sourcemod/configs/hextags.cfg build/addons/sourcemod/configs/hextags.cfg
+mv addons/sourcemod/configs/hextags-order.txt build/addons/sourcemod/configs/hextags-order.txt
 
 
 echo "Compress the plugin"
