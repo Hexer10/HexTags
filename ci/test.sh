@@ -10,4 +10,4 @@ tar -xzf sourcemod.tar.gz
 echo "Give compiler rights for compile"
 chmod +x addons/sourcemod/scripting/spcomp
 
-addons/sourcemod/scripting/compile.sh plugin.sp
+addons/sourcemod/scripting/compile.sh hextags.sp
