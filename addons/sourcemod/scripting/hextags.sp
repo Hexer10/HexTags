@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-//#define DEBUG 1
+#define DEBUG 1
 
 #include <sourcemod>
 #include <sdktools>
@@ -106,18 +106,6 @@ public void OnPluginStart()
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
-	LoadKv();
-	
-	//LateLoad
-	if (bLate)
-	{
-		for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i)) 
-		{
-			OnClientPostAdminCheck(i); 
-			Frame_SetTag(GetClientUserId(i));
-		}
-	}
-	
 	//Timers
 	if (bCSGO)
 		CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
@@ -132,6 +120,10 @@ public void OnAllPluginsLoaded()
 	
 	if (FindPluginByFile("custom-chatcolors-cp.smx") || LibraryExists("ccc"))
 		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
+		
+	
+	LoadKv();
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
 }
 
 public void OnLibraryAdded(const char[] name)
@@ -196,9 +188,8 @@ public Action OnClientCommandKeyValues(int client, KeyValues TagKv)
 	return Plugin_Continue; 
 }
 
-public void Frame_SetTag(any iUserID)
+public void Frame_SetTag(any client)
 {
-	int client = GetClientOfUserId(iUserID);
 	LoadTags(client);
 }
 
@@ -417,7 +408,7 @@ void LoadKv()
 
 void LoadTags(int client, bool sub = false)
 {
-	if (!client)
+	if (!IsValidClient(client, true, true))
 		return;
 	
 	//Clear the tags when re-checking
@@ -521,6 +512,10 @@ bool Select_AdminGroup(int client)
 
 bool Select_Flags(int client)
 {
+	AdminId admin = GetUserAdmin(client);
+	if (admin == INVALID_ADMIN_ID)
+		return false;
+	
 	static char sFlags[21] = "abcdefghijklmnopqrstz";
 	
 	for (int i = sizeof(sFlags)-1; 0 <= i; i--)
@@ -528,7 +523,14 @@ bool Select_Flags(int client)
 		char sFlag[1];
 		sFlag[0] = sFlags[i];
 		
-		if (ReadFlagString(sFlag) & GetUserFlagBits(client))
+		AdminFlag flag;
+		if (!BitToFlag(ReadFlagString(sFlag), flag))
+		{
+			LogError("Failed to read flag: %s", sFlag);
+			return false;
+		}
+		
+		if (admin.HasFlag(flag))
 		{
 			if (kv.JumpToKey(sFlag))
 			{
