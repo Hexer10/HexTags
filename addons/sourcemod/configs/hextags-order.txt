@@ -1,6 +1,8 @@
-AdminFlags
 SteamID
 AdminGroup
+AdminFlags
+Warden
+Deputy
 ActiveTime
 RankMe
 Team
