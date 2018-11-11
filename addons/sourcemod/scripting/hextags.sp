@@ -33,6 +33,8 @@
 #include <mostactive>
 #include <cstrike>
 #include <rankme>
+#include <warden>
+#include <myjbwarden>
 #define REQUIRE_EXTENSIONS
 #define REQUIRE_PLUGIN
 
@@ -50,6 +52,8 @@ bool bCSGO;
 bool bLate;
 bool bMostActive;
 bool bRankme;
+bool bWarden;
+bool bMyJBWarden;
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
 
@@ -93,12 +97,13 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	return APLRes_Success;
 }
 
+//TODO: Cache client ip instead of getting it every time.
 public void OnPluginStart()
 {
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
 	
 	//Reg Cmds
-	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_BAN, "Reload HexTags plugin config");
+	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
 	LoadKv();
@@ -122,6 +127,9 @@ public void OnAllPluginsLoaded()
 {
 	bMostActive = LibraryExists("mostactive");
 	bRankme = LibraryExists("rankme");
+	bWarden = LibraryExists("warden");
+	bMyJBWarden = LibraryExists("myjbwarden");
+	
 	if (FindPluginByFile("custom-chatcolors-cp.smx") || LibraryExists("ccc"))
 		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
 }
@@ -138,6 +146,14 @@ public void OnLibraryAdded(const char[] name)
 		bRankme = true;
 		LoadKv();
 	}
+	else if (StrEqual(name, "warden"))
+	{
+		bWarden = true;
+	}
+	else if (StrEqual(name, "myjbwarden"))
+	{
+		bMyJBWarden = true;
+	}
 }
 
 public void OnLibraryRemoved(const char[] name)
@@ -151,6 +167,14 @@ public void OnLibraryRemoved(const char[] name)
 	{
 		bRankme = false;
 		LoadKv();
+	}
+	else if (StrEqual(name, "warden"))
+	{
+		bWarden = false;
+	}
+	else if (StrEqual(name, "myjbwarden"))
+	{
+		bMyJBWarden = false;
 	}
 }
 
@@ -176,24 +200,32 @@ public void Frame_SetTag(any iUserID)
 {
 	int client = GetClientOfUserId(iUserID);
 	LoadTags(client);
-	
-	//Update params
-	if (StrContains(sTags[client][ScoreTag], "{country}") != -1)
-	{
-		char sIP[32];
-		char sCountry[3];
-		GetClientIP(client, sIP, sizeof(sIP));
-		GeoipCode2(sIP, sCountry);
-		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
-	}
-	
-	if (strlen(sTags[client][ScoreTag]) > 0 && bCSGO)
-		CS_SetClientClanTag(client, sTags[client][ScoreTag]);
 }
 
 public void OnClientDisconnect(int client)
 {
 	ResetTags(client);
+}
+
+public void warden_OnWardenCreated(int client)
+{
+	RequestFrame(Frame_LoadTag, client);
+}
+
+public void warden_OnWardenRemoved(int client)
+{
+	RequestFrame(Frame_LoadTag, client);
+	
+}
+
+public void warden_OnDeputyCreated(int client)
+{
+	RequestFrame(Frame_LoadTag, client);
+}
+
+public void warden_OnDeputyRemoved(int client)
+{
+	RequestFrame(Frame_LoadTag, client);
 }
 
 //Commands
@@ -221,21 +253,6 @@ public void OnClientPostAdminCheck(int client)
 	
 	if (bRankme)
 		RankMe_GetRank(client, RankMe_CheckRank);
-	
-	//Update params
-	if (StrContains(sTags[client][ScoreTag], "{country}") != -1)
-	{
-		char sIP[32];
-		char sCountry[3];
-		bool ip = GetClientIP(client, sIP, sizeof(sIP));
-		if (!ip)
-			LogError("Unable to get IP on postadmin check!");
-		GeoipCode2(sIP, sCountry);
-		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
-	}
-	
-	if (strlen(sTags[client][ScoreTag]) > 0 && bCSGO)
-		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
 }
 
 
@@ -368,6 +385,8 @@ void LoadKv()
 		file.WriteLine("SteamID");
 		file.WriteLine("AdminGroup");
 		file.WriteLine("AdminFlags");
+		file.WriteLine("Warden");
+		file.WriteLine("Deputy");
 		file.WriteLine("ActiveTime");
 		file.WriteLine("RankMe");
 		file.WriteLine("Team");
@@ -418,10 +437,12 @@ void LoadTags(int client, bool sub = false)
 		if (res)
 			return;
 	}
+	
 	//Check for 'All' entry
 	//Mark as depreaced
 	if (kv.JumpToKey("Default"))
 	{
+		LogMessage("[HexTags] Default select is depreaced! Put the tags without any selector to make them on every player");
 		GetTags(client);
 		return;
 	}
@@ -444,6 +465,12 @@ public Action Timer_ForceTag(Handle timer)
 		LogMessage("%L was changed by an external plugin, forcing him back to the HexTags' default one!", i, sTag);
 		CS_SetClientClanTag(i, sTags[i][ScoreTag]);
 	}
+}
+
+//Frams
+public void Frame_LoadTag(any client)
+{
+	LoadTags(client);
 }
 
 //Tags selectors.
@@ -596,6 +623,27 @@ bool Select_Team(int client)
 	}
 	return false;
 }
+
+bool Select_Warden(int client)
+{
+	if (warden_iswarden(client) && kv.JumpToKey("warden"))
+	{
+		GetTags(client);
+		return true;
+	}
+	return false;
+}
+
+bool Select_Deputy(int client)
+{
+	if (warden_deputy_isdeputy(client) && kv.JumpToKey("deputy"))
+	{
+		GetTags(client);
+		return true;
+	}
+	return false;
+}
+
 //Stocks
 void GetTags(int client, bool final = false)
 {
@@ -614,6 +662,24 @@ void GetTags(int client, bool final = false)
 	kv.GetString("ChatColor", sTags[client][ChatColor], sizeof(sTags[][]), "");
 	kv.GetString("NameColor", sTags[client][NameColor], sizeof(sTags[][]), "{teamcolor}");
 	bForceTag[client] = kv.GetNum("ForceTag", 1) == 1;
+	
+	
+	if (strlen(sTags[client][ScoreTag]) > 0 && bCSGO)
+	{
+		//Update params
+		if (StrContains(sTags[client][ScoreTag], "{country}") != -1)
+		{
+			char sIP[32];
+			char sCountry[3];
+			bool ip = GetClientIP(client, sIP, sizeof(sIP));
+			if (!ip)
+				LogError("Unable to get %L ip!", client);
+			GeoipCode2(sIP, sCountry);
+			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
+		}
+	
+		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
+	}
 }
 
 void ResetTags(int client)
@@ -647,11 +713,29 @@ void GetOrder(File file)
 		{
 			dataOrder.WriteFunction(Select_Flags);
 		}
+		else if (StrEqual(sLine, "Warden", false))
+		{
+			if (!bWarden)
+			{
+				LogMessage("[HexTags] Disabling Warden support...");
+				continue;
+			}
+			dataOrder.WriteFunction(Select_Warden);
+		}
+		else if (StrEqual(sLine, "Deputy", false))
+		{
+			if (!bMyJBWarden)
+			{
+				LogMessage("[HexTags] Disabling (MyJB)Warden support...");
+				continue;
+			}
+			dataOrder.WriteFunction(Select_Deputy);
+		}
 		else if (StrEqual(sLine, "ActiveTime", false))
 		{
 			if (!bMostActive)
 			{
-				LogMessage("Disabling MostActive support...");
+				LogMessage("[HexTags] Disabling MostActive support...");
 				continue;
 			}
 			dataOrder.WriteFunction(Select_Time);
@@ -660,7 +744,7 @@ void GetOrder(File file)
 		{
 			if (!bRankme)
 			{
-				LogMessage("Disabling RankMe support...");
+				LogMessage("[HexTags] Disabling RankMe support...");
 				continue;
 			}
 			dataOrder.WriteFunction(Select_Rankme);
