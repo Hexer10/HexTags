@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#define DEBUG 1
+//#define DEBUG 1
 
 #include <sourcemod>
 #include <sdktools>
@@ -141,10 +141,12 @@ public void OnLibraryAdded(const char[] name)
 	else if (StrEqual(name, "warden"))
 	{
 		bWarden = true;
+		LoadKv();
 	}
 	else if (StrEqual(name, "myjbwarden"))
 	{
 		bMyJBWarden = true;
+		LoadKv();
 	}
 }
 
@@ -163,10 +165,12 @@ public void OnLibraryRemoved(const char[] name)
 	else if (StrEqual(name, "warden"))
 	{
 		bWarden = false;
+		LoadKv();
 	}
 	else if (StrEqual(name, "myjbwarden"))
 	{
 		bMyJBWarden = false;
+		LoadKv();
 	}
 }
 
