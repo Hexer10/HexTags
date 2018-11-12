@@ -47,6 +47,7 @@
 Handle fTagsUpdated;
 Handle fMessageProcess;
 Handle fMessageProcessed;
+Handle fMessagePreProcess;
 
 bool bCSGO;
 bool bLate;
@@ -86,8 +87,9 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	
 	fTagsUpdated = CreateGlobalForward("HexTags_OnTagsUpdated", ET_Ignore, Param_Cell);
 	
-	fMessageProcess = CreateGlobalForward("HexTags_OnMessageProcess", ET_Single, Param_Cell, Param_String, Param_Cell, Param_String, Param_Cell);
+	fMessageProcess = CreateGlobalForward("HexTags_OnMessageProcess", ET_Single, Param_Cell, Param_String, Param_String);
 	fMessageProcessed = CreateGlobalForward("HexTags_OnMessageProcessed", ET_Ignore, Param_Cell, Param_String, Param_String);
+	fMessagePreProcess = CreateGlobalForward("HexTags_OnMessagePreProcess", ET_Single, Param_Cell, Param_String, Param_String);
 	
 	EngineVersion engine = GetEngineVersion();
 	bCSGO = (engine == Engine_CSGO || engine == Engine_CSS);
@@ -106,9 +108,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
-	//Timers
-	if (bCSGO)
-		CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
+
 }
 
 public void OnAllPluginsLoaded()
@@ -123,7 +123,11 @@ public void OnAllPluginsLoaded()
 		
 	
 	LoadKv();
-	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
+	if (bLate) for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
+	
+	//Timers
+	if (bCSGO)
+		CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
 }
 
 public void OnLibraryAdded(const char[] name)
@@ -131,22 +135,18 @@ public void OnLibraryAdded(const char[] name)
 	if (StrEqual(name, "mostactive"))
 	{
 		bMostActive = true;
-		LoadKv();
 	}
 	else if (StrEqual(name, "rankme"))
 	{
 		bRankme = true;
-		LoadKv();
 	}
 	else if (StrEqual(name, "warden"))
 	{
 		bWarden = true;
-		LoadKv();
 	}
 	else if (StrEqual(name, "myjbwarden"))
 	{
 		bMyJBWarden = true;
-		LoadKv();
 	}
 }
 
@@ -253,6 +253,18 @@ public void OnClientPostAdminCheck(int client)
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
+	Action result = Plugin_Continue;
+	//Call the forward
+	Call_StartForward(fMessagePreProcess);
+	Call_PushCell(author);
+	Call_PushStringEx(name, MAXLENGTH_NAME, SM_PARAM_STRING_UTF8|SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
+	Call_PushStringEx(message, MAXLENGTH_MESSAGE, SM_PARAM_STRING_UTF8|SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
+	Call_Finish(result);
+	
+	if (result >= Plugin_Handled)
+	{
+		return Plugin_Continue;
+	}
 	
 	//Add colors & tags
 	char sNewName[MAXLENGTH_NAME];
@@ -319,14 +331,12 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	sPassedMessage = sNewMessage;
 	
 	
-	Action result = Plugin_Continue;
+	result = Plugin_Continue;
 	//Call the forward
 	Call_StartForward(fMessageProcess);
 	Call_PushCell(author);
 	Call_PushStringEx(sPassedName, sizeof(sPassedName), SM_PARAM_STRING_UTF8|SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
-	Call_PushCell(sizeof(sPassedName));
 	Call_PushStringEx(sPassedMessage, sizeof(sPassedMessage), SM_PARAM_STRING_UTF8|SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
-	Call_PushCell(sizeof(sPassedMessage));
 	Call_Finish(result);
 	
 	if (result == Plugin_Continue)

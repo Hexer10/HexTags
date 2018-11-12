@@ -24,7 +24,7 @@
 #endif
 #define _hextags_included
 
-//Allow plugins to user chat-processor defines
+//Allow plugins to use chat-processor defines
 #if !defined _chat_processor_included
 #define MAXLENGTH_FLAG		32
 #define MAXLENGTH_NAME		128
@@ -102,18 +102,27 @@ native void HexTags_ResetClientTags(int client);
 forward void HexTags_OnTagsUpdated(int client);
 
 /**
- * Called before the message is processed.
+ * Called when the message is processed.
  *
  * @param client		Client Index.
  * @param name			Player's name.
- * @param nameLen		Player name's length.
  * @param message		Player's message.
- * @param messageLen	Player's length.
  *
+ * @return		Plugin_Continue to pass or Plugin_Handled or higher to block the processing.
+ */
+forward Action HexTags_OnMessagePreProcess(int client, char name[MAXLENGTH_NAME], char message[MAXLENGTH_MESSAGE]);
+
+/**
+ * Called when the message is processed.
+ *
+ * @param client		Client Index.
+ * @param name			Player's name.
+ * @param message		Player's message.
+
  * @return		Plugin_Continue to pass the event without edits, Plugin_Changed
  *				To pass edits or Plugin_Handled or greter to stop the event.
  */
-forward Action HexTags_OnMessageProcess(int client, char[] name, int nameLen, char[] message, int messageLen);
+forward Action HexTags_OnMessageProcess(int client, char name[MAXLENGTH_NAME], char message[MAXLENGTH_MESSAGE]);
 
 /**
  * Called after the message is processed.
@@ -124,4 +133,4 @@ forward Action HexTags_OnMessageProcess(int client, char[] name, int nameLen, ch
  *
  * @noreturn
  */
-forward void HexTags_OnMessageProcessed(int client, char[] name, char[] message);
+forward void HexTags_OnMessageProcessed(int client, const char[] name, const char[] message);
