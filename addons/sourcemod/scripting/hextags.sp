@@ -61,8 +61,6 @@ int iRank[MAXPLAYERS+1] = {-1, ...};
 char sTags[MAXPLAYERS+1][eTags][128];
 bool bForceTag[MAXPLAYERS+1];
 
-KeyValues kv;
-
 DataPack dataOrder;
 
 //Plugin infos
@@ -113,10 +111,7 @@ public void OnPluginStart()
 
 public void OnAllPluginsLoaded()
 {
-	bMostActive = LibraryExists("mostactive");
-	bRankme = LibraryExists("rankme");
-	bWarden = LibraryExists("warden");
-	bMyJBWarden = LibraryExists("myjbwarden");
+	Debug_Print("Called OnAllPlugins!");
 	
 	if (FindPluginByFile("custom-chatcolors-cp.smx") || LibraryExists("ccc"))
 		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
@@ -132,6 +127,7 @@ public void OnAllPluginsLoaded()
 
 public void OnLibraryAdded(const char[] name)
 {
+	Debug_Print("Called OnLibraryAdded %s", name);
 	if (StrEqual(name, "mostactive"))
 	{
 		bMostActive = true;
@@ -152,6 +148,7 @@ public void OnLibraryAdded(const char[] name)
 
 public void OnLibraryRemoved(const char[] name)
 {
+	Debug_Print("Called OnLibraryRemoved %s", name);
 	if (StrEqual(name, "mostactive"))
 	{
 		bMostActive = false;
@@ -227,7 +224,7 @@ public void warden_OnDeputyRemoved(int client)
 public Action Cmd_ReloadTags(int client, int args)
 {
 	LoadKv();
-	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))LoadTags(i);
 	
 	ReplyToCommand(client, "[SM] Tags succesfully reloaded!");
 	return Plugin_Handled;
@@ -376,6 +373,8 @@ public int RankMe_CheckRank(int client, int rank, any data)
 }
 
 //Functions
+char sTagConf[PLATFORM_MAX_PATH];
+
 void LoadKv()
 {
 	char sConfig[PLATFORM_MAX_PATH];
@@ -407,20 +406,20 @@ void LoadKv()
 	
 	if (OpenFile(sConfig, "rt") == null)
 		SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
-	
-	if (kv != null)
-		delete kv;
-	
-	kv = new KeyValues("HexTags"); //Create the kv
+		
+	KeyValues kv = new KeyValues("HexTags"); //Create the kv
 	
 	if (!kv.ImportFromFile(sConfig))
 		SetFailState("Couldn't import: \"%s\"", sConfig); //Check if file was imported properly
 	
 	if (!kv.GotoFirstSubKey())
 		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entries
+
+	delete kv;
+	strcopy(sTagConf, sizeof(sTagConf), sConfig);
 }
 
-void LoadTags(int client, bool sub = false)
+void LoadTags(int client, KeyValues kv = null)
 {
 	if (!IsValidClient(client, true, true))
 		return;
@@ -428,19 +427,27 @@ void LoadTags(int client, bool sub = false)
 	//Clear the tags when re-checking
 	ResetTags(client);
 	
-	if (!sub)
-		kv.Rewind();
+	if (kv == null)
+	{
+		kv = new KeyValues("HexTags");
+		kv.ImportFromFile(sTagConf);
+	}
 	
 	dataOrder.Reset();
 	while(dataOrder.IsReadable(1))
 	{
+		Debug_Print("Called: %i", dataOrder.Position);
 		bool res;
 		Function func = dataOrder.ReadFunction();
 		Call_StartFunction(INVALID_HANDLE, func);
 		Call_PushCell(client);
+		Call_PushCell(kv);
 		Call_Finish(res);
 		if (res)
+		{
+			LoadTags(client, kv);
 			return;
+		}
 	}
 	
 	//Check for 'All' entry
@@ -448,10 +455,11 @@ void LoadTags(int client, bool sub = false)
 	if (kv.JumpToKey("Default"))
 	{
 		LogMessage("[HexTags] Default select is depreaced! Put the tags without any selector to make them on every player");
-		GetTags(client);
+		LoadTags(client, kv);
 		return;
 	}
-	GetTags(client, true);
+	GetTags(client, kv, true);
+	delete kv;
 }
 
 //Timers
@@ -479,7 +487,7 @@ public void Frame_LoadTag(any client)
 }
 
 //Tags selectors.
-bool Select_SteamID(int client)
+bool Select_SteamID(int client, KeyValues kv)
 {
 	char steamid[32];
 	if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
@@ -487,7 +495,6 @@ bool Select_SteamID(int client)
 	
 	if (kv.JumpToKey(steamid))
 	{
-		GetTags(client, false);
 		return true;
 	}
 	
@@ -500,13 +507,12 @@ bool Select_SteamID(int client)
 	//Check again with STEAM_0/STEAM_1
 	if (kv.JumpToKey(steamid)) 
 	{
-		GetTags(client);
 		return true;
 	}
 	return false;
 }
 
-bool Select_AdminGroup(int client)
+bool Select_AdminGroup(int client, KeyValues kv)
 {
 	AdminId admin = GetUserAdmin(client);
 	if (admin != INVALID_ADMIN_ID)
@@ -515,16 +521,12 @@ bool Select_AdminGroup(int client)
 		admin.GetGroup(0, sGroup, sizeof(sGroup));
 		Format(sGroup, sizeof(sGroup), "@%s", sGroup);
 		
-		if (kv.JumpToKey(sGroup))
-		{
-			GetTags(client);
-			return true;
-		}
+		return kv.JumpToKey(sGroup);
 	}
 	return false;
 }
 
-bool Select_Flags(int client)
+bool Select_Flags(int client, KeyValues kv)
 {
 	AdminId admin = GetUserAdmin(client);
 	if (admin == INVALID_ADMIN_ID)
@@ -546,17 +548,13 @@ bool Select_Flags(int client)
 		
 		if (admin.HasFlag(flag))
 		{
-			if (kv.JumpToKey(sFlag))
-			{
-				GetTags(client);
-				return true;
-			}
+			return kv.JumpToKey(sFlag);
 		}
 	}
 	return false;
 }
 
-bool Select_Time(int client)
+bool Select_Time(int client, KeyValues kv)
 {
 	int iOldTime;
 	bool bReturn;
@@ -578,7 +576,6 @@ bool Select_Time(int client)
 		
 		if (StringToInt(sSecs) <= MostActive_GetPlayTimeTotal(client))
 		{
-			GetTags(client);
 			iOldTime = StringToInt(sSecs); //Save the time
 			bReturn = true; 
 		}
@@ -591,7 +588,7 @@ bool Select_Time(int client)
 	return false;
 }
 
-bool Select_Rankme(int client)
+bool Select_Rankme(int client, KeyValues kv)
 {
 	int iOldRank;
 	bool bReturn;
@@ -613,7 +610,6 @@ bool Select_Rankme(int client)
 		
 		if (StringToInt(sSecs) <= iRank[client])
 		{
-			GetTags(client);
 			iOldRank = StringToInt(sSecs); //Save the time
 			bReturn = true; 
 		}
@@ -626,46 +622,41 @@ bool Select_Rankme(int client)
 	return false;
 }
 
-bool Select_Team(int client)
+bool Select_Team(int client, KeyValues kv)
 {
 	char sTeam[32];
 	int team = GetClientTeam(client);
 	GetTeamName(team, sTeam, sizeof(sTeam));
 	
-	if (kv.JumpToKey(sTeam))
-	{
-		GetTags(client);
-		return true;
-	}
-	return false;
+	return kv.JumpToKey(sTeam);
 }
 
-bool Select_Warden(int client)
+bool Select_Warden(int client, KeyValues kv)
 {
 	if (warden_iswarden(client) && kv.JumpToKey("warden"))
 	{
-		GetTags(client);
 		return true;
 	}
 	return false;
 }
 
-bool Select_Deputy(int client)
+bool Select_Deputy(int client, KeyValues kv)
 {
 	if (warden_deputy_isdeputy(client) && kv.JumpToKey("deputy"))
 	{
-		GetTags(client);
 		return true;
 	}
 	return false;
 }
 
 //Stocks
-void GetTags(int client, bool final = false)
+
+//TODO Remove final parameter.
+void GetTags(int client, KeyValues kv, bool final = false)
 {
 	if (!final)
 	{
-		LoadTags(client, true);
+		LoadTags(client, kv);
 		return;
 	}
 	
@@ -719,14 +710,17 @@ void GetOrder(File file)
 		TrimString(sLine);
 		if (StrEqual(sLine, "SteamID", false))
 		{
+			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_SteamID);
 		}
 		else if (StrEqual(sLine, "AdminGroup", false))
 		{
+			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_AdminGroup);
 		}
 		else if (StrEqual(sLine, "AdminFlags", false))
 		{
+			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_Flags);
 		}
 		else if (StrEqual(sLine, "Warden", false))
@@ -736,6 +730,7 @@ void GetOrder(File file)
 				LogMessage("[HexTags] Disabling Warden support...");
 				continue;
 			}
+			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_Warden);
 		}
 		else if (StrEqual(sLine, "Deputy", false))
@@ -745,6 +740,7 @@ void GetOrder(File file)
 				LogMessage("[HexTags] Disabling (MyJB)Warden support...");
 				continue;
 			}
+			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_Deputy);
 		}
 		else if (StrEqual(sLine, "ActiveTime", false))
@@ -754,6 +750,7 @@ void GetOrder(File file)
 				LogMessage("[HexTags] Disabling MostActive support...");
 				continue;
 			}
+			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_Time);
 		}
 		else if (StrEqual(sLine, "RankMe", false))
@@ -763,10 +760,12 @@ void GetOrder(File file)
 				LogMessage("[HexTags] Disabling RankMe support...");
 				continue;
 			}
+			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_Rankme);
 		}
 		else if (StrEqual(sLine, "Team", false))
 		{
+			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_Team);
 		}
 		else
