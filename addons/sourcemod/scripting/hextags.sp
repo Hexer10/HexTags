@@ -49,19 +49,21 @@ Handle fMessageProcess;
 Handle fMessageProcessed;
 Handle fMessagePreProcess;
 
+DataPack dataOrder;
+
+ConVar cv_sFlagOrder;
+
 bool bCSGO;
 bool bLate;
 bool bMostActive;
 bool bRankme;
 bool bWarden;
 bool bMyJBWarden;
+bool bForceTag[MAXPLAYERS+1];
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
 
 char sTags[MAXPLAYERS+1][eTags][128];
-bool bForceTag[MAXPLAYERS+1];
-
-DataPack dataOrder;
 
 //Plugin infos
 public Plugin myinfo =
@@ -100,8 +102,12 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 //TODO: Cache client ip instead of getting it every time.
 public void OnPluginStart()
 {
-	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
 	
+	//CVars
+	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
+	cv_sFlagOrder = CreateConVar("sm_hextags_flagorder", "ztsrqponmlkjihgfedcba", "Flags in the order they should be selected.");
+	
+	AutoExecConfig();
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
@@ -532,23 +538,22 @@ bool Select_Flags(int client, KeyValues kv)
 	if (admin == INVALID_ADMIN_ID)
 		return false;
 	
-	static char sFlags[21] = "abcdefghijklmnopqrstz";
+	char sFlags[32];
+	cv_sFlagOrder.GetString(sFlags, sizeof(sFlags));
 	
-	for (int i = sizeof(sFlags)-1; 0 <= i; i--)
+	int len = strlen(sFlags);
+	for (int i = 0; i < len; i++)
 	{
-		char sFlag[1];
-		sFlag[0] = sFlags[i];
-		
 		AdminFlag flag;
-		if (!BitToFlag(ReadFlagString(sFlag), flag))
+		if (!FindFlagByChar(sFlags[i], flag))
 		{
-			LogError("Failed to read flag: %s", sFlag);
+			LogError("Failed to read flag: %s", sFlags[i]);
 			return false;
 		}
 		
 		if (admin.HasFlag(flag))
 		{
-			return kv.JumpToKey(sFlag);
+			return kv.JumpToKey(sFlags[i]);
 		}
 	}
 	return false;
