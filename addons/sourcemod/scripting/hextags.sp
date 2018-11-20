@@ -112,6 +112,9 @@ public void OnPluginStart()
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
+	#if defined DEBUG
+	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
+	#endif
 
 }
 
@@ -138,10 +141,10 @@ public void OnLibraryAdded(const char[] name)
 	{
 		bMostActive = true;
 	}
-	else if (StrEqual(name, "rankme"))
+	/*else if (StrEqual(name, "rankme"))
 	{
 		bRankme = true;
-	}
+	}*/
 	else if (StrEqual(name, "warden"))
 	{
 		bWarden = true;
@@ -179,12 +182,18 @@ public void OnLibraryRemoved(const char[] name)
 
 
 //Thanks to https://forums.alliedmods.net/showpost.php?p=2573907&postcount=6
-public Action OnClientCommandKeyValues(int client, KeyValues TagKv)
+public Action OnClientCommandKeyValues(int client, KeyValues kv)
 {
 	char sKey[64]; 
 	
-	if (!TagKv.GetSectionName(sKey, sizeof(sKey)))
+	if (!kv.GetSectionName(sKey, sizeof(sKey)))
 		return Plugin_Continue;
+	
+	#if defined DEBUG
+	char sKV[256];
+	kv.ExportToString(sKV, sizeof(sKV));
+	Debug_Print("Called ClientCmdKv: %s\n%s\n", sKey, sKV);
+	#endif
 	
 	//TODO: Set the key value tag instead of requesting the frame.
 	if(StrEqual(sKey, "ClanTagChanged"))
@@ -197,7 +206,7 @@ public Action OnClientCommandKeyValues(int client, KeyValues TagKv)
 
 public void Frame_SetTag(any client)
 {
-	LoadTags(client);
+	LoadTags(GetClientOfUserId(client));
 }
 
 public void OnClientDisconnect(int client)
@@ -212,6 +221,10 @@ public void warden_OnWardenCreated(int client)
 
 public void warden_OnWardenRemoved(int client)
 {
+	//TODO Set the original clantag
+	if (bCSGO)
+		CS_SetClientClanTag(client, "");
+	
 	RequestFrame(Frame_LoadTag, client);
 	
 }
@@ -223,6 +236,10 @@ public void warden_OnDeputyCreated(int client)
 
 public void warden_OnDeputyRemoved(int client)
 {
+	//TODO Set the original clantag
+	if (bCSGO)
+		CS_SetClientClanTag(client, "");
+		
 	RequestFrame(Frame_LoadTag, client);
 }
 
@@ -243,6 +260,17 @@ public Action Cmd_GetTeam(int client, int args)
 	ReplyToCommand(client, "[SM] Current team name: %s", sTeam);
 	return Plugin_Handled;
 }
+
+#if defined DEBUG
+public Action Cmd_GetVars(int client, int args)
+{
+	ReplyToCommand(client, sTags[client][ScoreTag]);
+	ReplyToCommand(client, sTags[client][ChatTag]);
+	ReplyToCommand(client, sTags[client][ChatColor]);
+	ReplyToCommand(client, sTags[client][NameColor]);
+	return Plugin_Handled;
+}
+#endif
 
 //Events
 public void OnClientPostAdminCheck(int client)
@@ -424,7 +452,6 @@ void LoadKv()
 	delete kv;
 	strcopy(sTagConf, sizeof(sTagConf), sConfig);
 }
-
 void LoadTags(int client, KeyValues kv = null)
 {
 	if (!IsValidClient(client, true, true))
@@ -437,12 +464,13 @@ void LoadTags(int client, KeyValues kv = null)
 	{
 		kv = new KeyValues("HexTags");
 		kv.ImportFromFile(sTagConf);
+		Debug_Print("KeyValue handle: %i", kv);
 	}
 	
 	dataOrder.Reset();
 	while(dataOrder.IsReadable(1))
 	{
-		Debug_Print("Called: %i", dataOrder.Position);
+		//Debug_Print("Called: %i", dataOrder.Position);
 		bool res;
 		Function func = dataOrder.ReadFunction();
 		Call_StartFunction(INVALID_HANDLE, func);
@@ -542,6 +570,7 @@ bool Select_Flags(int client, KeyValues kv)
 	cv_sFlagOrder.GetString(sFlags, sizeof(sFlags));
 	
 	int len = strlen(sFlags);
+	Debug_Print("Flags: %s", sFlags);
 	for (int i = 0; i < len; i++)
 	{
 		AdminFlag flag;
@@ -553,7 +582,10 @@ bool Select_Flags(int client, KeyValues kv)
 		
 		if (admin.HasFlag(flag))
 		{
-			return kv.JumpToKey(sFlags[i]);
+			if (kv.JumpToKey(sFlags[i]))
+				return true;
+
+			continue;
 		}
 	}
 	return false;
@@ -590,6 +622,7 @@ bool Select_Time(int client, KeyValues kv)
 	if (bReturn)
 		return true;
 	
+	kv.GoBack();
 	return false;
 }
 
@@ -640,6 +673,7 @@ bool Select_Warden(int client, KeyValues kv)
 {
 	if (warden_iswarden(client) && kv.JumpToKey("warden"))
 	{
+		Debug_Print("Called Select_Warden: true");
 		return true;
 	}
 	return false;
@@ -665,6 +699,13 @@ void GetTags(int client, KeyValues kv, bool final = false)
 		return;
 	}
 	
+	char sSection[64];
+	kv.GetSectionName(sSection, sizeof(sSection));
+	Debug_Print("Section: %s", sSection);
+	
+	if (StrEqual(sSection, "HexTags", false))
+		return;
+	
 	Call_StartForward(fTagsUpdated);
 	Call_PushCell(client);
 	Call_Finish();
@@ -683,15 +724,16 @@ void GetTags(int client, KeyValues kv, bool final = false)
 		{
 			char sIP[32];
 			char sCountry[3];
-			bool ip = GetClientIP(client, sIP, sizeof(sIP));
-			if (!ip)
+			if (!GetClientIP(client, sIP, sizeof(sIP)))
 				LogError("Unable to get %L ip!", client);
 			GeoipCode2(sIP, sCountry);
 			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
 		}
-	
+		
+		Debug_Print("Setted tag: %s", sTags[client][ScoreTag]);
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
 	}
+	Debug_Print("Succesfully setted tags");
 }
 
 void ResetTags(int client)
