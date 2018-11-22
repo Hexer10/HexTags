@@ -573,16 +573,20 @@ bool Select_Flags(int client, KeyValues kv)
 	Debug_Print("Flags: %s", sFlags);
 	for (int i = 0; i < len; i++)
 	{
+		char sFlag[1];
+		sFlag[0] = sFlags[i];
+		
 		AdminFlag flag;
 		if (!FindFlagByChar(sFlags[i], flag))
 		{
-			LogError("Failed to read flag: %s", sFlags[i]);
+			LogError("Failed to read flag: %s", sFlag);
 			return false;
 		}
 		
+
 		if (admin.HasFlag(flag))
 		{
-			if (kv.JumpToKey(sFlags[i]))
+			if (kv.JumpToKey(sFlag))
 				return true;
 
 			continue;
