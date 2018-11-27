@@ -102,7 +102,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 //TODO: Cache client ip instead of getting it every time.
 public void OnPluginStart()
 {
-	
 	//CVars
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
 	cv_sFlagOrder = CreateConVar("sm_hextags_flagorder", "ztsrqponmlkjihgfedcba", "Flags in the order they should be selected.");
@@ -115,7 +114,6 @@ public void OnPluginStart()
 	#if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
 	#endif
-
 }
 
 public void OnAllPluginsLoaded()
@@ -322,18 +320,23 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rainbow}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
-		int sub = -1;
-		for(int i = 0; i < strlen(sNewMessage); i++)
+		int color;
+		int len = strlen(sNewMessage);
+		for(int i = 0; i < len; i++)
 		{
-			if (sNewMessage[i] == ' ')
+			if (IsCharSpace(sNewMessage[i]))
 			{
 				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sNewMessage[i]);
-				sub++;
 				continue;
 			}
-			Format(sTemp, sizeof(sTemp), "%s%c%c", sTemp, GetColor(i-sub), sNewMessage[i]);
-		}
-		
+			
+			int bytes = GetCharBytes(sNewMessage[i])+1;
+			char[] c = new char[bytes];
+			strcopy(c, bytes, sNewMessage[i]);
+			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetColor(++color), c);
+			if (IsCharMB(sNewMessage[i]))
+				i += bytes-2;
+		}		
 		Format(sNewMessage, MAXLENGTH_MESSAGE, "%s", sTemp); 
 	}
 	
@@ -343,16 +346,22 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{random}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
-		for(int i = 0; i < strlen(sNewMessage); i++)
+		int len = strlen(sNewMessage);
+		for(int i = 0; i < len; i++)
 		{
-			if (sNewMessage[i] == ' ')
+			if (IsCharSpace(sNewMessage[i]))
 			{
 				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sNewMessage[i]);
 				continue;
 			}
-			Format(sTemp, sizeof(sTemp), "%s%c%c", sTemp, GetRandomColor(), sNewMessage[i]);
-		}
-		
+			
+			int bytes = GetCharBytes(sNewMessage[i])+1;
+			char[] c = new char[bytes];
+			strcopy(c, bytes, sNewMessage[i]);
+			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetRandomColor(), c);
+			if (IsCharMB(sNewMessage[i]))
+				i += bytes-2;
+		}		
 		Format(sNewMessage, MAXLENGTH_MESSAGE, "%s", sTemp); 
 	}
 	
