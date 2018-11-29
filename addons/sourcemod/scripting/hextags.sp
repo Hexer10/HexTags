@@ -35,6 +35,7 @@
 #include <rankme>
 #include <warden>
 #include <myjbwarden>
+#include <hl_gangs>
 #define REQUIRE_EXTENSIONS
 #define REQUIRE_PLUGIN
 
@@ -59,6 +60,7 @@ bool bMostActive;
 bool bRankme;
 bool bWarden;
 bool bMyJBWarden;
+bool bGangs;
 bool bForceTag[MAXPLAYERS+1];
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
@@ -151,6 +153,10 @@ public void OnLibraryAdded(const char[] name)
 	{
 		bMyJBWarden = true;
 	}
+	else if (StrEqual(name, "hl_gangs"))
+	{
+		bGangs = true;
+	}
 }
 
 public void OnLibraryRemoved(const char[] name)
@@ -174,6 +180,11 @@ public void OnLibraryRemoved(const char[] name)
 	else if (StrEqual(name, "myjbwarden"))
 	{
 		bMyJBWarden = false;
+		LoadKv();
+	}
+	else if (StrEqual(name, "hl_gangs"))
+	{
+		bGangs = false;
 		LoadKv();
 	}
 }
@@ -307,12 +318,21 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	ReplaceString(sNewName, sizeof(sNewName), "{time}", sTime);
 	ReplaceString(sNewMessage, sizeof(sNewMessage), "{time}", sTime);
 	
+	
 	char sIP[32];
 	char sCountry[3];
 	GetClientIP(author, sIP, sizeof(sIP));
 	GeoipCode2(sIP, sCountry);
 	ReplaceString(sNewName, sizeof(sNewName), "{country}", sCountry);
 	ReplaceString(sNewMessage, sizeof(sNewMessage), "{country}", sCountry);
+	
+	if (bGangs && Gangs_HasGang(author))
+	{
+		char sGang[32];
+		Gangs_GetGangName(author, sGang, sizeof(sGang));
+		ReplaceString(sNewName, sizeof(sNewName), "{gang}", sGang);
+		ReplaceString(sNewMessage, sizeof(sNewMessage), "{gang}", sGang);
+	}
 	
 	//Rainbow Chat
 	if (StrEqual(sTags[author][ChatColor], "{rainbow}", false))
@@ -742,7 +762,12 @@ void GetTags(int client, KeyValues kv, bool final = false)
 			GeoipCode2(sIP, sCountry);
 			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
 		}
-		
+		if (bGangs && StrContains(sTags[client][ScoreTag], "{gang}") != -1 && Gangs_HasGang(client))
+		{
+			char sGang[32];
+			Gangs_GetGangName(client, sGang, sizeof(sGang));
+			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{gang}", sGang);
+		}
 		Debug_Print("Setted tag: %s", sTags[client][ScoreTag]);
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
 	}
