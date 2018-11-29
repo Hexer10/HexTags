@@ -63,7 +63,6 @@ bool bMyJBWarden;
 bool bGangs;
 bool bForceTag[MAXPLAYERS+1];
 
-int iRank[MAXPLAYERS+1] = {-1, ...};
 
 char sTags[MAXPLAYERS+1][eTags][128];
 
@@ -141,10 +140,10 @@ public void OnLibraryAdded(const char[] name)
 	{
 		bMostActive = true;
 	}
-	/*else if (StrEqual(name, "rankme"))
+	else if (StrEqual(name, "rankme"))
 	{
 		bRankme = true;
-	}*/
+	}
 	else if (StrEqual(name, "warden"))
 	{
 		bWarden = true;
@@ -285,9 +284,6 @@ public Action Cmd_GetVars(int client, int args)
 public void OnClientPostAdminCheck(int client)
 {
 	LoadTags(client);
-	
-	if (bRankme)
-		RankMe_GetRank(client, RankMe_CheckRank);
 }
 
 
@@ -332,6 +328,14 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 		Gangs_GetGangName(author, sGang, sizeof(sGang));
 		ReplaceString(sNewName, sizeof(sNewName), "{gang}", sGang);
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{gang}", sGang);
+	}
+	
+	if (bRankme)
+	{
+		char sPoints[16];
+		IntToString(RankMe_GetPoints(author), sPoints, sizeof(sPoints));
+		ReplaceString(sNewName, sizeof(sNewName), "{rankme}", sPoints);
+		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rankme}", sPoints);
 	}
 	
 	//Rainbow Chat
@@ -428,11 +432,6 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	Call_Finish();
 	
 	return Plugin_Changed;
-}
-
-public int RankMe_CheckRank(int client, int rank, any data)
-{
-	LoadTags(client);
 }
 
 //Functions
@@ -679,7 +678,7 @@ bool Select_Rankme(int client, KeyValues kv)
 		if (iOldRank >= StringToInt(sSecs)) //Select only the higher time.
 			continue;
 		
-		if (StringToInt(sSecs) <= iRank[client])
+		if (StringToInt(sSecs) <= RankMe_GetPoints(client))
 		{
 			iOldRank = StringToInt(sSecs); //Save the time
 			bReturn = true; 
@@ -689,7 +688,8 @@ bool Select_Rankme(int client, KeyValues kv)
 	
 	if (bReturn)
 		return true;
-
+	
+	kv.GoBack();
 	return false;
 }
 
@@ -768,6 +768,13 @@ void GetTags(int client, KeyValues kv, bool final = false)
 			Gangs_GetGangName(client, sGang, sizeof(sGang));
 			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{gang}", sGang);
 		}
+		if (bRankme && StrContains(sTags[client][ScoreTag], "{rankme}") != -1)
+		{
+			char sPoints[16];
+			IntToString(RankMe_GetPoints(client), sPoints, sizeof(sPoints));
+			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rankme}", sPoints);
+		}
+		
 		Debug_Print("Setted tag: %s", sTags[client][ScoreTag]);
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
 	}
