@@ -53,6 +53,7 @@ Handle fMessagePreProcess;
 DataPack dataOrder;
 
 ConVar cv_sFlagOrder;
+ConVar cv_sDefaultGang;
 
 bool bCSGO;
 bool bLate;
@@ -106,6 +107,7 @@ public void OnPluginStart()
 	//CVars
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
 	cv_sFlagOrder = CreateConVar("sm_hextags_flagorder", "ztsrqponmlkjihgfedcba", "Flags in the order they should be selected.");
+	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs");
 	
 	AutoExecConfig();
 	//Reg Cmds
@@ -322,10 +324,11 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	ReplaceString(sNewName, sizeof(sNewName), "{country}", sCountry);
 	ReplaceString(sNewMessage, sizeof(sNewMessage), "{country}", sCountry);
 	
-	if (bGangs && Gangs_HasGang(author))
+	if (bGangs)
 	{
 		char sGang[32];
-		Gangs_GetGangName(author, sGang, sizeof(sGang));
+		Gangs_HasGang(author) ?  Gangs_GetGangName(author, sGang, sizeof(sGang)) : cv_sDefaultGang.GetString(sGang, sizeof(sGang));
+			
 		ReplaceString(sNewName, sizeof(sNewName), "{gang}", sGang);
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{gang}", sGang);
 	}
@@ -762,10 +765,10 @@ void GetTags(int client, KeyValues kv, bool final = false)
 			GeoipCode2(sIP, sCountry);
 			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
 		}
-		if (bGangs && StrContains(sTags[client][ScoreTag], "{gang}") != -1 && Gangs_HasGang(client))
+		if (bGangs && StrContains(sTags[client][ScoreTag], "{gang}") != -1)
 		{
 			char sGang[32];
-			Gangs_GetGangName(client, sGang, sizeof(sGang));
+			Gangs_HasGang(client) ?  Gangs_GetGangName(client, sGang, sizeof(sGang)) : cv_sDefaultGang.GetString(sGang, sizeof(sGang));
 			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{gang}", sGang);
 		}
 		if (bRankme && StrContains(sTags[client][ScoreTag], "{rankme}") != -1)
