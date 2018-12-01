@@ -64,6 +64,7 @@ bool bMyJBWarden;
 bool bGangs;
 bool bForceTag[MAXPLAYERS+1];
 
+int iRank[MAXPLAYERS+1] = {-1, ...};
 
 char sTags[MAXPLAYERS+1][eTags][128];
 
@@ -285,9 +286,19 @@ public Action Cmd_GetVars(int client, int args)
 //Events
 public void OnClientPostAdminCheck(int client)
 {
+	if (bRankme)
+	{
+		RankMe_GetRank(client, RankMe_LoadTags);
+		return;
+	}
 	LoadTags(client);
 }
 
+public Action RankMe_LoadTags(int client, int rank, any data)
+{
+	iRank[client] = rank;
+	LoadTags(client);
+}
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
@@ -337,8 +348,13 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	{
 		char sPoints[16];
 		IntToString(RankMe_GetPoints(author), sPoints, sizeof(sPoints));
-		ReplaceString(sNewName, sizeof(sNewName), "{rankme}", sPoints);
-		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rankme}", sPoints);
+		ReplaceString(sNewName, sizeof(sNewName), "{rmPoints}", sPoints);
+		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rmPoints}", sPoints);
+		
+		char sRank[16];
+		IntToString(iRank[author], sRank, sizeof(sRank));
+		ReplaceString(sNewName, sizeof(sNewName), "{rmRank}", sRank);
+		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rmRank}", sRank);
 	}
 	
 	//Rainbow Chat
@@ -771,11 +787,17 @@ void GetTags(int client, KeyValues kv, bool final = false)
 			Gangs_HasGang(client) ?  Gangs_GetGangName(client, sGang, sizeof(sGang)) : cv_sDefaultGang.GetString(sGang, sizeof(sGang));
 			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{gang}", sGang);
 		}
-		if (bRankme && StrContains(sTags[client][ScoreTag], "{rankme}") != -1)
+		if (bRankme && StrContains(sTags[client][ScoreTag], "{rmPoints}") != -1)
 		{
 			char sPoints[16];
 			IntToString(RankMe_GetPoints(client), sPoints, sizeof(sPoints));
-			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rankme}", sPoints);
+			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmPoints}", sPoints);
+		}
+		if (bRankme && StrContains(sTags[client][ScoreTag], "{rmRank}") != -1)
+		{
+			char sRank[16];
+			IntToString(iRank[client], sRank, sizeof(sRank));
+			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmRank}", sRank);
 		}
 		
 		Debug_Print("Setted tag: %s", sTags[client][ScoreTag]);
@@ -791,6 +813,7 @@ void ResetTags(int client)
 	strcopy(sTags[client][ChatColor], sizeof(sTags[][]), "");
 	strcopy(sTags[client][NameColor], sizeof(sTags[][]), "");
 	bForceTag[client] = true;
+	iRank[client] = -1;
 }
 
 void GetOrder(File file)
