@@ -54,6 +54,7 @@ DataPack dataOrder;
 
 ConVar cv_sFlagOrder;
 ConVar cv_sDefaultGang;
+ConVar cv_bParseRoundEnd;
 
 bool bCSGO;
 bool bLate;
@@ -68,7 +69,7 @@ int iRank[MAXPLAYERS+1] = {-1, ...};
 
 char sTags[MAXPLAYERS+1][eTags][128];
 
-//Plugin infos
+//Plugin info
 public Plugin myinfo =
 {
 	name = "hextags",
@@ -109,11 +110,17 @@ public void OnPluginStart()
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
 	cv_sFlagOrder = CreateConVar("sm_hextags_flagorder", "ztsrqponmlkjihgfedcba", "Flags in the order they should be selected.");
 	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs");
+	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
 	
 	AutoExecConfig();
+	
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
+	
+	//Event hooks
+	if (!HookEventEx("round_end", Event_RoundEnd))
+		LogError("Failed to hook \"round_end\", \"sm_hextags_roundend\" won't produce any effect.");
 	
 	#if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
@@ -292,6 +299,14 @@ public void OnClientPostAdminCheck(int client)
 		return;
 	}
 	LoadTags(client);
+}
+
+public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+{
+	if (!cv_bParseRoundEnd.BoolValue)
+		return;
+	
+	if (bLate) for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
 }
 
 public Action RankMe_LoadTags(int client, int rank, any data)
