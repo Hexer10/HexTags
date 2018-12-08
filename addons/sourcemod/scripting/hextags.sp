@@ -36,6 +36,7 @@
 #include <warden>
 #include <myjbwarden>
 #include <hl_gangs>
+#include <SteamWorks>
 #define REQUIRE_EXTENSIONS
 #define REQUIRE_PLUGIN
 
@@ -63,6 +64,7 @@ bool bRankme;
 bool bWarden;
 bool bMyJBWarden;
 bool bGangs;
+bool bSteamWorks = true;
 bool bForceTag[MAXPLAYERS+1];
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
@@ -122,18 +124,24 @@ public void OnPluginStart()
 	if (!HookEventEx("round_end", Event_RoundEnd))
 		LogError("Failed to hook \"round_end\", \"sm_hextags_roundend\" won't produce any effect.");
 	
-	#if defined DEBUG
+#if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
-	#endif
+#endif
 }
 
 public void OnAllPluginsLoaded()
-{
+{	
 	Debug_Print("Called OnAllPlugins!");
 	
 	if (FindPluginByFile("custom-chatcolors-cp.smx") || LibraryExists("ccc"))
 		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
-		
+	
+	bMostActive = LibraryExists("mostactive");
+	bRankme = LibraryExists("rankme");
+	bWarden = LibraryExists("warden");
+	bMyJBWarden = LibraryExists("myjbwarden");
+	bGangs = LibraryExists("gl_gangs");
+	bSteamWorks = LibraryExists("SteamWorks");
 	
 	LoadKv();
 	if (bLate) for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
@@ -142,6 +150,7 @@ public void OnAllPluginsLoaded()
 	if (bCSGO)
 		CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
 }
+
 
 public void OnLibraryAdded(const char[] name)
 {
@@ -165,6 +174,10 @@ public void OnLibraryAdded(const char[] name)
 	else if (StrEqual(name, "hl_gangs"))
 	{
 		bGangs = true;
+	}
+	else if (StrEqual(name, "SteamWorks", false))
+	{
+		bSteamWorks = true;
 	}
 }
 
@@ -196,6 +209,11 @@ public void OnLibraryRemoved(const char[] name)
 		bGangs = false;
 		LoadKv();
 	}
+	else if (StrEqual(name, "SteamWorks", false))
+	{
+		bSteamWorks = false;
+		LoadKv();
+	}
 }
 
 
@@ -207,16 +225,18 @@ public Action OnClientCommandKeyValues(int client, KeyValues kv)
 	if (!kv.GetSectionName(sKey, sizeof(sKey)))
 		return Plugin_Continue;
 	
-	#if defined DEBUG
+#if defined DEBUG
 	char sKV[256];
 	kv.ExportToString(sKV, sizeof(sKV));
 	Debug_Print("Called ClientCmdKv: %s\n%s\n", sKey, sKV);
-	#endif
+#endif
 	
-	//TODO: Set the key value tag instead of requesting the frame.
 	if(StrEqual(sKey, "ClanTagChanged"))
 	{
-		RequestFrame(Frame_SetTag, GetClientUserId(client));
+		//RequestFrame(Frame_SetTag, GetClientUserId(client));
+		LoadTags(client);
+		kv.SetString("tag", sTags[client][ScoreTag]);
+		return Plugin_Changed;
 	}
 	
 	return Plugin_Continue; 
@@ -257,7 +277,7 @@ public void warden_OnDeputyRemoved(int client)
 	//TODO Set the original clantag
 	if (bCSGO)
 		CS_SetClientClanTag(client, "");
-		
+	
 	RequestFrame(Frame_LoadTag, client);
 }
 
@@ -354,7 +374,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	{
 		char sGang[32];
 		Gangs_HasGang(author) ?  Gangs_GetGangName(author, sGang, sizeof(sGang)) : cv_sDefaultGang.GetString(sGang, sizeof(sGang));
-			
+		
 		ReplaceString(sNewName, sizeof(sNewName), "{gang}", sGang);
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{gang}", sGang);
 	}
@@ -481,12 +501,13 @@ void LoadKv()
 		File file = OpenFile(sConfig, "wt");
 		if (file == null)
 			SetFailState("Failed to created: \"%s\"", sConfig); //Check if cfg exist
-			
+		
 		file.WriteLine("SteamID");
 		file.WriteLine("AdminGroup");
 		file.WriteLine("AdminFlags");
 		file.WriteLine("Warden");
 		file.WriteLine("Deputy");
+		file.WriteLine("NoPrime");
 		file.WriteLine("ActiveTime");
 		file.WriteLine("RankMe");
 		file.WriteLine("Team");
@@ -496,13 +517,13 @@ void LoadKv()
 	File file = OpenFile(sConfig, "rt");
 	if (file == null)
 		SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
-		
+	
 	GetOrder(file);
 	BuildPath(Path_SM, sConfig, sizeof(sConfig), "configs/hextags.cfg"); //Get cfg file
 	
 	if (OpenFile(sConfig, "rt") == null)
 		SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
-		
+	
 	KeyValues kv = new KeyValues("HexTags"); //Create the kv
 	
 	if (!kv.ImportFromFile(sConfig))
@@ -510,7 +531,7 @@ void LoadKv()
 	
 	if (!kv.GotoFirstSubKey())
 		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entries
-
+	
 	delete kv;
 	strcopy(sTagConf, sizeof(sTagConf), sConfig);
 }
@@ -645,12 +666,12 @@ bool Select_Flags(int client, KeyValues kv)
 			return false;
 		}
 		
-
+		
 		if (admin.HasFlag(flag))
 		{
 			if (kv.JumpToKey(sFlag))
 				return true;
-
+			
 			continue;
 		}
 	}
@@ -755,6 +776,14 @@ bool Select_Deputy(int client, KeyValues kv)
 	return false;
 }
 
+bool Select_NoPrime(int client, KeyValues kv)
+{
+	if (k_EUserHasLicenseResultDoesNotHaveLicense == SteamWorks_HasLicenseForApp(client, 624820) && kv.JumpToKey("NoPrime"))
+	{
+		return true;
+	}
+	return false;
+}
 //Stocks
 
 //TODO Remove final parameter.
@@ -835,7 +864,7 @@ void GetOrder(File file)
 {
 	if (dataOrder != null)
 		delete dataOrder;
-		
+	
 	dataOrder = new DataPack();
 	char sLine[32];
 	while(file.ReadLine(sLine, sizeof(sLine)))
@@ -900,6 +929,16 @@ void GetOrder(File file)
 		{
 			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_Team);
+		}
+		else if (StrEqual(sLine, "NoPrime", false))
+		{
+			if (!bSteamWorks)
+			{
+				LogMessage("[HexTags] Disabling SteamWorks support...");
+				continue;
+			}
+			Debug_Print("Added: %s", sLine);
+			dataOrder.WriteFunction(Select_NoPrime);
 		}
 		else
 		{

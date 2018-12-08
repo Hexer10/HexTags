@@ -3,6 +3,7 @@ AdminGroup
 AdminFlags
 Warden
 Deputy
+NoPrime
 ActiveTime
 RankMe
 Team
