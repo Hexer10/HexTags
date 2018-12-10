@@ -501,8 +501,8 @@ void LoadKv()
 		File file = OpenFile(sConfig, "wt");
 		if (file == null)
 			SetFailState("Failed to created: \"%s\"", sConfig); //Check if cfg exist
-		
 		file.WriteLine("SteamID");
+		file.WriteLine("Gang");
 		file.WriteLine("AdminGroup");
 		file.WriteLine("AdminFlags");
 		file.WriteLine("Warden");
@@ -784,6 +784,15 @@ bool Select_NoPrime(int client, KeyValues kv)
 	}
 	return false;
 }
+
+bool Select_Gang(int client, KeyValues kv)
+{
+	if (Gangs_HasGang(client) && kv.JumpToKey("Gang"))
+	{
+		return true;
+	}
+	return false;
+}
 //Stocks
 
 //TODO Remove final parameter.
@@ -939,6 +948,16 @@ void GetOrder(File file)
 			}
 			Debug_Print("Added: %s", sLine);
 			dataOrder.WriteFunction(Select_NoPrime);
+		}
+		else if (StrEqual(sLine, "Gang", false))
+		{
+			if (!bGangs)
+			{
+				LogMessage("[HexTags] Disabling Gangs support...");
+				continue;
+			}
+			Debug_Print("Added: %s", sLine);
+			dataOrder.WriteFunction(Select_Gang);
 		}
 		else
 		{

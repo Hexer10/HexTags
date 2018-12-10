@@ -1,4 +1,5 @@
 SteamID
+Gang
 AdminGroup
 AdminFlags
 Warden
