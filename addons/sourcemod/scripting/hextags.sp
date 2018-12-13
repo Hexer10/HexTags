@@ -140,7 +140,7 @@ public void OnAllPluginsLoaded()
 	bRankme = LibraryExists("rankme");
 	bWarden = LibraryExists("warden");
 	bMyJBWarden = LibraryExists("myjbwarden");
-	bGangs = LibraryExists("gl_gangs");
+	bGangs = LibraryExists("hl_gangs");
 	bSteamWorks = LibraryExists("SteamWorks");
 	
 	LoadKv();
