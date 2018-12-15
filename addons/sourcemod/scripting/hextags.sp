@@ -57,6 +57,7 @@ ConVar cv_sFlagOrder;
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
 ConVar cv_bOrderDisabled;
+ConVar cv_bDisableRankme;
 
 bool bCSGO;
 bool bLate;
@@ -115,6 +116,7 @@ public void OnPluginStart()
 	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs");
 	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
 	cv_bOrderDisabled = CreateConVar("sm_hextags_disable_order", "0", "If 1 the hextags-order.txt file will be disabled and the order will be the default one.");
+	cv_bDisableRankme = CreateConVar("sm_hextags_disable_rankme", "0", "Set to 1 if you're having issues with rankme releted APIs.");
 	
 	AutoExecConfig();
 	
@@ -139,7 +141,7 @@ public void OnAllPluginsLoaded()
 		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
 	
 	bMostActive = LibraryExists("mostactive");
-	bRankme = LibraryExists("rankme");
+	bRankme = LibraryExists("rankme") && cv_bDisableRankme.BoolValue;
 	bWarden = LibraryExists("warden");
 	bMyJBWarden = LibraryExists("myjbwarden");
 	bGangs = LibraryExists("hl_gangs");
@@ -161,7 +163,7 @@ public void OnLibraryAdded(const char[] name)
 	{
 		bMostActive = true;
 	}
-	else if (StrEqual(name, "rankme"))
+	else if (StrEqual(name, "rankme") && cv_bDisableRankme.BoolValue)
 	{
 		bRankme = true;
 	}
