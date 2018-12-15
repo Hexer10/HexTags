@@ -56,6 +56,7 @@ DataPack dataOrder;
 ConVar cv_sFlagOrder;
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
+ConVar cv_bOrderDisabled;
 
 bool bCSGO;
 bool bLate;
@@ -113,6 +114,7 @@ public void OnPluginStart()
 	cv_sFlagOrder = CreateConVar("sm_hextags_flagorder", "ztsrqponmlkjihgfedcba", "Flags in the order they should be selected.");
 	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs");
 	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
+	cv_bOrderDisabled = CreateConVar("sm_hextags_disable_order", "0", "If 1 the hextags-order.txt file will be disabled and the order will be the default one.");
 	
 	AutoExecConfig();
 	
@@ -875,6 +877,55 @@ void GetOrder(File file)
 		delete dataOrder;
 	
 	dataOrder = new DataPack();
+	if (cv_bOrderDisabled.BoolValue)
+	{
+		dataOrder.WriteFunction(Select_SteamID);
+		dataOrder.WriteFunction(Select_AdminGroup);
+		dataOrder.WriteFunction(Select_Flags);
+		if (!bWarden)
+		{
+			LogMessage("[HexTags] Disabling Warden support...");
+		}
+		else
+		{
+			dataOrder.WriteFunction(Select_Warden);
+		}
+		if (!bMyJBWarden)
+		{
+			LogMessage("[HexTags] Disabling (MyJB)Warden support...");
+		}
+		else
+		{
+			dataOrder.WriteFunction(Select_Deputy);
+		}
+		dataOrder.WriteFunction(Select_Time);
+		if (!bRankme)
+		{
+			LogMessage("[HexTags] Disabling RankMe support...");
+		}
+		else
+		{
+			dataOrder.WriteFunction(Select_Rankme);
+		}
+		dataOrder.WriteFunction(Select_Team);
+		if (!bSteamWorks)
+		{
+			LogMessage("[HexTags] Disabling SteamWorks support...");
+		}
+		else
+		{
+			dataOrder.WriteFunction(Select_NoPrime);
+		}
+		if (!bGangs)
+		{
+			LogMessage("[HexTags] Disabling Gangs support...");
+		}
+		else
+		{
+			dataOrder.WriteFunction(Select_Gang);
+		}
+		return;
+	}
 	char sLine[32];
 	while(file.ReadLine(sLine, sizeof(sLine)))
 	{
