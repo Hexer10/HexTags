@@ -226,7 +226,7 @@ public Action OnClientCommandKeyValues(int client, KeyValues kv)
 {
 	char sKey[64]; 
 	
-	if (!kv.GetSectionName(sKey, sizeof(sKey)))
+	if (!bCSGO | !kv.GetSectionName(sKey, sizeof(sKey)))
 		return Plugin_Continue;
 	
 #if defined DEBUG
@@ -239,7 +239,12 @@ public Action OnClientCommandKeyValues(int client, KeyValues kv)
 	{
 		//RequestFrame(Frame_SetTag, GetClientUserId(client));
 		LoadTags(client);
+		
+		if(sTags[client][ScoreTag][0] == '\0')
+			return Plugin_Continue;
+		
 		kv.SetString("tag", sTags[client][ScoreTag]);
+		Debug_Print("[ClanTagChanged] Setted tag: %s ", sTags[client][ScoreTag]);
 		return Plugin_Changed;
 	}
 	
@@ -589,7 +594,7 @@ public Action Timer_ForceTag(Handle timer)
 	if (!bCSGO)
 		return;
 	
-	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && bForceTag[i] && strlen(sTags[i][ScoreTag]) > 0)
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && bForceTag[i] && sTags[i][ScoreTag][0] != '\0')
 	{
 		char sTag[32];
 		CS_GetClientClanTag(i, sTag, sizeof(sTag));
@@ -689,6 +694,9 @@ bool Select_Time(int client, KeyValues kv)
 	
 	if (!kv.GotoFirstSubKey())
 		return false;
+		
+		
+	int iPlayTime = MostActive_GetPlayTimeTotal(client);
 	do
 	{
 		char sSecs[16];
@@ -698,15 +706,13 @@ bool Select_Time(int client, KeyValues kv)
 			continue;
 		
 		Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
-		
-		if (iOldTime >= StringToInt(sSecs)) //Select only the higher time.
+		int iReqTime = StringToInt(sSecs);
+		if (iReqTime < iPlayTime || iOldTime > iReqTime) //Select only the higher time.
 			continue;
+			
+		iOldTime = iReqTime; //Save the time
+		bReturn = true; 
 		
-		if (StringToInt(sSecs) <= MostActive_GetPlayTimeTotal(client))
-		{
-			iOldTime = StringToInt(sSecs); //Save the time
-			bReturn = true; 
-		}
 	}
 	while (kv.GotoNextKey());
 	
@@ -826,7 +832,7 @@ void GetTags(int client, KeyValues kv, bool final = false)
 	bForceTag[client] = kv.GetNum("ForceTag", 1) == 1;
 	
 	
-	if (strlen(sTags[client][ScoreTag]) > 0 && bCSGO)
+	if (sTags[client][ScoreTag][0] != '\0' && bCSGO)
 	{
 		//Update params
 		if (StrContains(sTags[client][ScoreTag], "{country}") != -1)
