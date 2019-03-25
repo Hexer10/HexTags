@@ -322,12 +322,12 @@ public Action Cmd_GetVars(int client, int args)
 //Events
 public void OnClientPostAdminCheck(int client)
 {
-	if (bRankme)
-	{
-		RankMe_GetRank(client, RankMe_LoadTags);
-		return;
-	}
 	LoadTags(client);
+}
+
+public Action RankMe_OnPlayerLoaded(int client)
+{
+	RankMe_GetRank(client, RankMe_LoadTags);
 }
 
 public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
