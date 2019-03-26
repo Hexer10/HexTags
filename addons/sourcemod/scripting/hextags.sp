@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-//#define DEBUG 1
+#define DEBUG 1
 
 #include <sourcemod>
 #include <sdktools>
@@ -580,10 +580,10 @@ void LoadTags(int client, KeyValues kv = null)
 	//Mark as depreaced
 	if (kv.JumpToKey("Default"))
 	{
-		LogMessage("[HexTags] Default select is depreaced! Put the tags without any selector to make them on every player");
 		LoadTags(client, kv);
 		return;
 	}
+	
 	GetTags(client, kv, true);
 	delete kv;
 }
