@@ -906,7 +906,14 @@ void GetOrder(File file)
 		{
 			dataOrder.WriteFunction(Select_Deputy);
 		}
-		dataOrder.WriteFunction(Select_Time);
+		if (!bMostActive)
+		{
+			LogMessage("[HexTags] Disabling MostActive support...");
+		}
+		else
+		{
+			dataOrder.WriteFunction(Select_Time);
+		}
 		if (!bRankme)
 		{
 			LogMessage("[HexTags] Disabling RankMe support...");
