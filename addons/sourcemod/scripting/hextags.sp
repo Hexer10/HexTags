@@ -141,7 +141,7 @@ public void OnAllPluginsLoaded()
 		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
 	
 	bMostActive = LibraryExists("mostactive");
-	bRankme = LibraryExists("rankme") && cv_bDisableRankme.BoolValue;
+	bRankme = LibraryExists("rankme") && !cv_bDisableRankme.BoolValue;
 	bWarden = LibraryExists("warden");
 	bMyJBWarden = LibraryExists("myjbwarden");
 	bGangs = LibraryExists("hl_gangs");
@@ -163,7 +163,7 @@ public void OnLibraryAdded(const char[] name)
 	{
 		bMostActive = true;
 	}
-	else if (StrEqual(name, "rankme") && cv_bDisableRankme.BoolValue)
+	else if (StrEqual(name, "rankme") && !cv_bDisableRankme.BoolValue)
 	{
 		bRankme = true;
 	}
