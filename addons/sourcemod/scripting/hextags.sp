@@ -338,7 +338,7 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
 }
 
-public Action RankMe_LoadTags(int client, int rank, any data)
+public int RankMe_LoadTags(int client, int rank, any data)
 {
 	iRank[client] = rank;
 	LoadTags(client);
