@@ -32,7 +32,7 @@
 #undef REQUIRE_PLUGIN
 #include <mostactive>
 #include <cstrike>
-#include <rankme>
+#include <kento_rankme/rankme>
 #include <warden>
 #include <myjbwarden>
 #include <hl_gangs>
