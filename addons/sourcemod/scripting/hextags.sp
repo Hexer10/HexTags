@@ -346,11 +346,15 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 
 public Action RankMe_LoadTags(int client, int rank, any data)
 {
-	iRank[client] = rank;
-	char sRank[16];
-	IntToString(iRank[client], sRank, sizeof(sRank));
-	ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmRank}", sRank);
-	CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
+	if (IsValidClient(client, true, true))
+	{
+		iRank[client] = rank;
+		char sRank[16];
+		IntToString(iRank[client], sRank, sizeof(sRank));
+		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmRank}", sRank);
+		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
+	}
+	
 }
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
@@ -867,7 +871,7 @@ void GetTags(int client, KeyValues kv, bool final = false)
 		}
 		if (bRankme && StrContains(sTags[client][ScoreTag], "{rmRank}") != -1)
 		{
-			// we do this in RankMe_OnPlayerSaved
+			RankMe_GetRank(client, RankMe_LoadTags);
 		}
 		
 		Debug_Print("Setted tag: %s", sTags[client][ScoreTag]);
