@@ -259,6 +259,7 @@ public void Frame_SetTag(any client)
 public void OnClientDisconnect(int client)
 {
 	ResetTags(client);
+	iRank[client] = -1;
 }
 
 public void warden_OnWardenCreated(int client)
@@ -330,6 +331,11 @@ public Action RankMe_OnPlayerLoaded(int client)
 	RankMe_GetRank(client, RankMe_LoadTags);
 }
 
+public Action RankMe_OnPlayerSaved(int client)
+{
+	RankMe_GetRank(client, RankMe_LoadTags);
+}
+
 public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	if (!cv_bParseRoundEnd.BoolValue)
@@ -340,8 +346,15 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 
 public Action RankMe_LoadTags(int client, int rank, any data)
 {
-	iRank[client] = rank;
-	LoadTags(client);
+	if (IsValidClient(client, true, true))
+	{
+		iRank[client] = rank;
+		char sRank[16];
+		IntToString(iRank[client], sRank, sizeof(sRank));
+		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmRank}", sRank);
+		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
+	}
+	
 }
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
@@ -858,9 +871,7 @@ void GetTags(int client, KeyValues kv, bool final = false)
 		}
 		if (bRankme && StrContains(sTags[client][ScoreTag], "{rmRank}") != -1)
 		{
-			char sRank[16];
-			IntToString(iRank[client], sRank, sizeof(sRank));
-			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmRank}", sRank);
+			RankMe_GetRank(client, RankMe_LoadTags);
 		}
 		
 		Debug_Print("Setted tag: %s", sTags[client][ScoreTag]);
@@ -876,7 +887,6 @@ void ResetTags(int client)
 	strcopy(sTags[client][ChatColor], sizeof(sTags[][]), "");
 	strcopy(sTags[client][NameColor], sizeof(sTags[][]), "");
 	bForceTag[client] = true;
-	iRank[client] = -1;
 }
 
 void GetOrder(File file)
