@@ -3,7 +3,7 @@
  * by: Hexah
  * https://github.com/Hexer10/HexTags
  * 
- * Copyright (C) 2017 Mattia (Hexah|Hexer10|Papero)
+ * Copyright (C) 2017-2019 Mattia (Hexah|Hexer10|Papero)
  *
  * This file is part of the HexTags SourceMod Plugin.
  *
@@ -49,7 +49,7 @@ public void __pl_hextags_SetNTVOptional()
 {
 	MarkNativeAsOptional("HexTags_GetClientTag");
 	MarkNativeAsOptional("HexTags_SetClientTag");
-	MarkNativeAsOptional("HexTags_ResetClientTags");
+	MarkNativeAsOptional("HexTags_ResetClientTag");
 }
 #endif
 
@@ -92,7 +92,7 @@ native void HexTags_SetClientTag(int client, eTags TagType, char[] Tag);
  *
  * @error        Invalid client index, or not connected.
  */
-native void HexTags_ResetClientTags(int client);
+native void HexTags_ResetClientTag(int client);
 
 /** 
  * Called when the client tags gets updated.

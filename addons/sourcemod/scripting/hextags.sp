@@ -3,7 +3,7 @@
  * by: Hexah
  * https://github.com/Hexer10/HexTags
  * 
- * Copyright (C) 2017 Mattia (Hexah|Hexer10|Papero)
+ * Copyright (C) 2017-2019 Mattia (Hexah|Hexer10|Papero)
  *
  * This file is part of the HexTags SourceMod Plugin.
  *
