@@ -91,7 +91,33 @@ enum EResult
 	k_EResultNoMatchingURL = 75,
 	k_EResultBadResponse = 76,					// parse failure, missing field, etc.
 	k_EResultRequirePasswordReEntry = 77,		// The user cannot complete the action until they re-enter their password
-	k_EResultValueOutOfRange = 78				// the value entered is outside the acceptable range
+	k_EResultValueOutOfRange = 78,				// the value entered is outside the acceptable range
+	k_EResultUnexpectedError = 79,				// something happened that we didn't expect to ever happen
+	k_EResultDisabled = 80,						// The requested service has been configured to be unavailable
+	k_EResultInvalidCEGSubmission = 81,			// The set of files submitted to the CEG server are not valid !
+	k_EResultRestrictedDevice = 82,				// The device being used is not allowed to perform this action
+	k_EResultRegionLocked = 83,					// The action could not be complete because it is region restricted
+	k_EResultRateLimitExceeded = 84,			// Temporary rate limit exceeded, try again later, different from k_EResultLimitExceeded which may be permanent
+	k_EResultAccountLoginDeniedNeedTwoFactor = 85,	// Need two-factor code to login
+	k_EResultItemDeleted = 86,					// The thing we're trying to access has been deleted
+	k_EResultAccountLoginDeniedThrottle = 87,	// login attempt failed, try to throttle response to possible attacker
+	k_EResultTwoFactorCodeMismatch = 88,		// two factor code mismatch
+	k_EResultTwoFactorActivationCodeMismatch = 89,	// activation code for two-factor didn't match
+	k_EResultAccountAssociatedToMultiplePartners = 90,	// account has been associated with multiple partners
+	k_EResultNotModified = 91,					// data not modified
+	k_EResultNoMobileDevice = 92,				// the account does not have a mobile device associated with it
+	k_EResultTimeNotSynced = 93,				// the time presented is out of range or tolerance
+	k_EResultSmsCodeFailed = 94,				// SMS code failure (no match, none pending, etc.)
+	k_EResultAccountLimitExceeded = 95,			// Too many accounts access this resource
+	k_EResultAccountActivityLimitExceeded = 96,	// Too many changes to this account
+	k_EResultPhoneActivityLimitExceeded = 97,	// Too many changes to this phone
+	k_EResultRefundToWallet = 98,				// Cannot refund to payment method, must use wallet
+	k_EResultEmailSendFailure = 99,				// Cannot send an email
+	k_EResultNotSettled = 100,					// Can't perform operation till payment has settled
+	k_EResultNeedCaptcha = 101,					// Needs to provide a valid captcha
+	k_EResultGSLTDenied = 102,					// a game server login token owned by this token's owner has been banned
+	k_EResultGSOwnerDenied = 103,				// game server owner is denied for other reason (account lock, community ban, vac ban, missing phone)
+	k_EResultInvalidItemType = 104				// the type of thing we were requested to act on is invalid
 };
 
 /* This enum is used in client API methods, do not re-number existing values. */
@@ -104,6 +130,7 @@ enum EHTTPMethod
 	k_EHTTPMethodPUT,
 	k_EHTTPMethodDELETE,
 	k_EHTTPMethodOPTIONS,
+	k_EHTTPMethodPATCH,
 
 	// The remaining HTTP methods are not yet supported, per rfc2616 section 5.1.1 only GET and HEAD are required for 
 	// a compliant general purpose server.  We'll likely add more as we find uses for them.
@@ -175,11 +202,23 @@ enum EHTTPStatusCode
 	k_EHTTPStatusCode5xxUnknown =				599,
 };
 
+/* list of possible return values from the ISteamGameCoordinator API */
+enum EGCResults
+{
+	k_EGCResultOK = 0,
+	k_EGCResultNoMessage = 1,			// There is no message in the queue
+	k_EGCResultBufferTooSmall = 2,		// The buffer is too small for the requested message
+	k_EGCResultNotLoggedOn = 3,			// The client is not logged onto Steam
+	k_EGCResultInvalidMessage = 4,		// Something was wrong with the message being sent with SendMessage
+};
+
 native bool:SteamWorks_IsVACEnabled();
 native bool:SteamWorks_GetPublicIP(ipaddr[4]);
 native SteamWorks_GetPublicIPCell();
 native bool:SteamWorks_IsLoaded();
-native bool:SteamWorks_SetGameDescription(String:sDesc[]);
+native bool:SteamWorks_SetGameData(const String:sData[]);
+native bool:SteamWorks_SetGameDescription(const String:sDesc[]);
+native bool:SteamWorks_SetMapName(const String:sMapName[]);
 native bool:SteamWorks_IsConnected();
 native bool:SteamWorks_SetRule(const String:sKey[], const String:sValue[]);
 native bool:SteamWorks_ClearRules();
@@ -188,6 +227,7 @@ native bool:SteamWorks_GetUserGroupStatus(client, groupid);
 native bool:SteamWorks_GetUserGroupStatusAuthID(authid, groupid);
 
 native EUserHasLicenseForAppResult:SteamWorks_HasLicenseForApp(client, app);
+native EUserHasLicenseForAppResult:SteamWorks_HasLicenseForAppId(authid, app);
 native SteamWorks_GetClientSteamID(client, String:sSteamID[], length);
 
 native bool:SteamWorks_RequestStatsAuthID(authid, appid);
@@ -202,6 +242,40 @@ native bool:SteamWorks_SetHTTPRequestContextValue(Handle:hHandle, any:data1, any
 native bool:SteamWorks_SetHTTPRequestNetworkActivityTimeout(Handle:hHandle, timeout);
 native bool:SteamWorks_SetHTTPRequestHeaderValue(Handle:hHandle, const String:sName[], const String:sValue[]);
 native bool:SteamWorks_SetHTTPRequestGetOrPostParameter(Handle:hHandle, const String:sName[], const String:sValue[]);
+native bool:SteamWorks_SetHTTPRequestUserAgentInfo(Handle:hHandle, const String:sUserAgentInfo[]);
+native bool:SteamWorks_SetHTTPRequestRequiresVerifiedCertificate(Handle:hHandle, bool:bRequireVerifiedCertificate);
+native bool:SteamWorks_SetHTTPRequestAbsoluteTimeoutMS(Handle:hHandle, unMilliseconds);
+
+#if SOURCEMOD_V_MAJOR >= 1 && SOURCEMOD_V_MINOR >= 9
+typeset SteamWorksHTTPRequestCompleted
+{
+	function void (Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode);
+	function void (Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, any data1);
+	function void (Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, any data1, any data2);
+};
+
+typeset SteamWorksHTTPHeadersReceived
+{
+	function void (Handle hRequest, bool bFailure);
+	function void (Handle hRequest, bool bFailure, any data1);
+	function void (Handle hRequest, bool bFailure, any data1, any data2);
+};
+
+typeset SteamWorksHTTPDataReceived
+{
+	function void (Handle hRequest, bool bFailure, int offset, int bytesreceived);
+	function void (Handle hRequest, bool bFailure, int offset, int bytesreceived, any data1);
+	function void (Handle hRequest, bool bFailure, int offset, int bytesreceived, any data1, any data2);
+};
+
+typeset SteamWorksHTTPBodyCallback
+{
+	function void (const char sData[]);
+	function void (const char sData[], any value);
+	function void (const int data[], any value, int datalen);
+};
+
+#else
 
 funcenum SteamWorksHTTPRequestCompleted
 {
@@ -224,6 +298,15 @@ funcenum SteamWorksHTTPDataReceived
 	public(Handle:hRequest, bool:bFailure, offset, bytesreceived, any:data1, any:data2)
 };
 
+funcenum SteamWorksHTTPBodyCallback
+{
+	public(const String:sData[]),
+	public(const String:sData[], any:value),
+	public(const data[], any:value, datalen)
+};
+
+#endif
+
 native bool:SteamWorks_SetHTTPCallbacks(Handle:hHandle, SteamWorksHTTPRequestCompleted:fCompleted = INVALID_FUNCTION, SteamWorksHTTPHeadersReceived:fHeaders = INVALID_FUNCTION, SteamWorksHTTPDataReceived:fData = INVALID_FUNCTION, Handle:hCalling = INVALID_HANDLE);
 native bool:SteamWorks_SendHTTPRequest(Handle:hRequest);
 native bool:SteamWorks_SendHTTPRequestAndStreamResponse(Handle:hRequest);
@@ -235,16 +318,11 @@ native bool:SteamWorks_GetHTTPResponseBodySize(Handle:hRequest, &size);
 native bool:SteamWorks_GetHTTPResponseBodyData(Handle:hRequest, String:sBody[], length);
 native bool:SteamWorks_GetHTTPStreamingResponseBodyData(Handle:hRequest, cOffset, String:sBody[], length);
 native bool:SteamWorks_GetHTTPDownloadProgressPct(Handle:hRequest, &Float:percent);
+native bool:SteamWorks_GetHTTPRequestWasTimedOut(Handle:hRequest, &bool:bWasTimedOut);
 native bool:SteamWorks_SetHTTPRequestRawPostBody(Handle:hRequest, const String:sContentType[], const String:sBody[], bodylen);
+native bool:SteamWorks_SetHTTPRequestRawPostBodyFromFile(Handle:hRequest, const String:sContentType[], const String:sFileName[]);
 
-funcenum SteamWorksHTTPBodyCallback
-{
-	public(const String:sData[]),
-	public(const String:sData[], any:value),
-	public(const data[], any:value, datalen)
-};
-
-native bool:SteamWorks_GetHTTPResponseBodyCallback(Handle:hRequest, SteamWorksHTTPBodyCallback:fCallback, any:data = 0, Handle:hPlugin = INVALID_HANDLE);
+native bool:SteamWorks_GetHTTPResponseBodyCallback(Handle:hRequest, SteamWorksHTTPBodyCallback:fCallback, any:data = 0, Handle:hPlugin = INVALID_HANDLE); /* Look up, moved definition for 1.7+ compat. */
 native bool:SteamWorks_WriteHTTPResponseBodyToFile(Handle:hRequest, const String:sFileName[]);
 
 forward SW_OnValidateClient(ownerauthid, authid);
@@ -257,6 +335,12 @@ forward Action:SteamWorks_RestartRequested();
 forward SteamWorks_TokenRequested(String:sToken[], maxlen);
 
 forward SteamWorks_OnClientGroupStatus(authid, groupid, bool:isMember, bool:isOfficer);
+
+forward EGCResults:SteamWorks_GCSendMessage(unMsgType, const String:pubData[], cubData);
+forward SteamWorks_GCMsgAvailable(cubData);
+forward EGCResults:SteamWorks_GCRetrieveMessage(punMsgType, const String:pubDest[], cubDest, pcubMsgSize);
+
+native EGCResults:SteamWorks_SendMessageToGC(unMsgType, const String:pubData[], cubData);
 
 public Extension:__ext_SteamWorks = 
 {
@@ -281,6 +365,7 @@ public __ext_SteamWorks_SetNTVOptional()
 	MarkNativeAsOptional("SteamWorks_GetPublicIP");
 	MarkNativeAsOptional("SteamWorks_GetPublicIPCell");
 	MarkNativeAsOptional("SteamWorks_IsLoaded");
+	MarkNativeAsOptional("SteamWorks_SetGameData");
 	MarkNativeAsOptional("SteamWorks_SetGameDescription");
 	MarkNativeAsOptional("SteamWorks_IsConnected");
 	MarkNativeAsOptional("SteamWorks_SetRule");
@@ -290,6 +375,7 @@ public __ext_SteamWorks_SetNTVOptional()
 	MarkNativeAsOptional("SteamWorks_GetUserGroupStatusAuthID");
 
 	MarkNativeAsOptional("SteamWorks_HasLicenseForApp");
+	MarkNativeAsOptional("SteamWorks_HasLicenseForAppId");
 	MarkNativeAsOptional("SteamWorks_GetClientSteamID");
 
 	MarkNativeAsOptional("SteamWorks_RequestStatsAuthID");
@@ -298,6 +384,8 @@ public __ext_SteamWorks_SetNTVOptional()
 	MarkNativeAsOptional("SteamWorks_GetStatAuthIDCell");
 	MarkNativeAsOptional("SteamWorks_GetStatFloat");
 	MarkNativeAsOptional("SteamWorks_GetStatAuthIDFloat");
+
+	MarkNativeAsOptional("SteamWorks_SendMessageToGC");
 
 	MarkNativeAsOptional("SteamWorks_CreateHTTPRequest");
 	MarkNativeAsOptional("SteamWorks_SetHTTPRequestContextValue");
@@ -317,6 +405,7 @@ public __ext_SteamWorks_SetNTVOptional()
 	MarkNativeAsOptional("SteamWorks_GetHTTPStreamingResponseBodyData");
 	MarkNativeAsOptional("SteamWorks_GetHTTPDownloadProgressPct");
 	MarkNativeAsOptional("SteamWorks_SetHTTPRequestRawPostBody");
+	MarkNativeAsOptional("SteamWorks_SetHTTPRequestRawPostBodyFromFile");
 
 	MarkNativeAsOptional("SteamWorks_GetHTTPResponseBodyCallback");
 	MarkNativeAsOptional("SteamWorks_WriteHTTPResponseBodyToFile");
