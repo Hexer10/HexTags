@@ -375,7 +375,56 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	//Add colors & tags
 	char sNewName[MAXLENGTH_NAME];
 	char sNewMessage[MAXLENGTH_MESSAGE];
-	Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", sTags[author][ChatTag], sTags[author][NameColor], name); 
+	// Rainbow name
+	if (StrEqual(sTags[author][NameColor], "{rainbow}")) 
+	{
+		char sTemp[MAXLENGTH_MESSAGE]; 
+		
+		int color;
+		int len = strlen(name);
+		for(int i = 0; i < len; i++)
+		{
+			if (IsCharSpace(name[i]))
+			{
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, name[i]);
+				continue;
+			}
+			
+			int bytes = GetCharBytes(name[i])+1;
+			char[] c = new char[bytes];
+			strcopy(c, bytes, name[i]);
+			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetColor(++color), c);
+			if (IsCharMB(name[i]))
+			i += bytes-2;
+		}		
+		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", sTags[author][ChatTag], sTemp);
+	}
+	else if (StrEqual(sTags[author][NameColor], "{random}")) //Random name
+	{
+		char sTemp[MAXLENGTH_MESSAGE]; 
+		
+		int len = strlen(name);
+		for(int i = 0; i < len; i++)
+		{
+			if (IsCharSpace(name[i]))
+			{
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, name[i]);
+				continue;
+			}
+			
+			int bytes = GetCharBytes(name[i])+1;
+			char[] c = new char[bytes];
+			strcopy(c, bytes, name[i]);
+			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetRandomColor(), c);
+			if (IsCharMB(name[i]))
+			i += bytes-2;
+		}		
+		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", sTags[author][ChatTag], sTemp);
+	}
+	else
+	{
+		Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", sTags[author][ChatTag], sTags[author][NameColor], name);
+	}
 	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", sTags[author][ChatColor], message);
 	
 	//Update the params
@@ -876,6 +925,54 @@ void GetTags(int client, KeyValues kv, bool final = false)
 		
 		Debug_Print("Setted tag: %s", sTags[client][ScoreTag]);
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
+	}
+	if (StrContains(sTags[client][ChatTag], "{rainbow}") == 0) 
+	{
+			Debug_Print("Found {rainbow} in ChatTag");
+			ReplaceString(sTags[client][ChatTag], sizeof(sTags[][]), "{rainbow}", "");
+			char sTemp[MAXLENGTH_MESSAGE]; 
+			
+			int color;
+			int len = strlen(sTags[client][ChatTag]);
+			for(int i = 0; i < len; i++)
+			{
+				if (IsCharSpace(sTags[client][ChatTag][i]))
+				{
+					Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sTags[client][ChatTag][i]);
+					continue;
+				}
+				
+				int bytes = GetCharBytes(sTags[client][ChatTag][i])+1;
+				char[] c = new char[bytes];
+				strcopy(c, bytes, sTags[client][ChatTag][i]);
+				Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetColor(++color), c);
+				if (IsCharMB(sTags[client][ChatTag][i]))
+					i += bytes-2;
+			}
+			strcopy(sTags[client][ChatTag], sizeof(sTags[][]), sTemp);
+			Debug_Print("Replaced ChatTag with %s", sTags[client][ChatTag]);
+	}
+	if (StrContains(sTags[client][ChatTag], "{random}") == 0) 
+	{
+		ReplaceString(sTags[client][ChatTag], sizeof(sTags[][]), "{random}", "");
+		char sTemp[MAXLENGTH_MESSAGE];
+		int len = strlen(sTags[client][ChatTag]);
+		for(int i = 0; i < len; i++)
+		{
+			if (IsCharSpace(sTags[client][ChatTag][i]))
+			{
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sTags[client][ChatTag][i]);
+				continue;
+			}
+			
+			int bytes = GetCharBytes(sTags[client][ChatTag][i])+1;
+			char[] c = new char[bytes];
+			strcopy(c, bytes, sTags[client][ChatTag][i]);
+			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetRandomColor(), c);
+			if (IsCharMB(sTags[client][ChatTag][i]))
+			i += bytes-2;
+		}
+		strcopy(sTags[client][ChatTag], sizeof(sTags[][]), sTemp);
 	}
 	Debug_Print("Succesfully setted tags");
 }
