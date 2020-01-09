@@ -72,7 +72,8 @@ bool bForceTag[MAXPLAYERS+1];
 int iRank[MAXPLAYERS+1] = {-1, ...};
 bool bHideTag[MAXPLAYERS+1];
 
-char sTags[MAXPLAYERS+1][eTags][128];
+// TODO: Workaround for sm 1.11, implement eTags enum struct
+char sTags[MAXPLAYERS+1][4][128];
 
 //Plugin info
 public Plugin myinfo =
