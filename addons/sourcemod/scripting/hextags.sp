@@ -70,6 +70,7 @@ bool bSteamWorks = true;
 bool bForceTag[MAXPLAYERS+1];
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
+bool bHideTag[MAXPLAYERS+1];
 
 char sTags[MAXPLAYERS+1][eTags][128];
 
@@ -122,6 +123,7 @@ public void OnPluginStart()
 	
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
+	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_GENERIC, "Toggle the visibility of your tags");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
 	//Event hooks
@@ -224,7 +226,10 @@ public void OnLibraryRemoved(const char[] name)
 //Thanks to https://forums.alliedmods.net/showpost.php?p=2573907&postcount=6
 public Action OnClientCommandKeyValues(int client, KeyValues kv)
 {
-	char sKey[64]; 
+	if (bHideTag[client])
+		return Plugin_Continue;
+	
+	char sKey[64];
 	
 	if (!bCSGO | !kv.GetSectionName(sKey, sizeof(sKey)))
 		return Plugin_Continue;
@@ -260,6 +265,7 @@ public void OnClientDisconnect(int client)
 {
 	ResetTags(client);
 	iRank[client] = -1;
+	bHideTag[client] = false;
 }
 
 public void warden_OnWardenCreated(int client)
@@ -299,6 +305,22 @@ public Action Cmd_ReloadTags(int client, int args)
 	
 	ReplyToCommand(client, "[SM] Tags succesfully reloaded!");
 	return Plugin_Handled;
+}
+
+public Action Cmd_ToggleTags(int client, int args)
+{
+	if (bHideTag[client])
+	{
+		bHideTag[client] = false;
+		LoadTags(client);
+		ReplyToCommand(client, "[SM] Your tags are visible again.");
+	} 
+	else
+	{
+		bHideTag[client] = true;
+		CS_SetClientClanTag(client, "");
+		ReplyToCommand(client, "[SM] Your tags are no longer visible.");
+	}
 }
 
 public Action Cmd_GetTeam(int client, int args)
@@ -359,6 +381,11 @@ public Action RankMe_LoadTags(int client, int rank, any data)
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
+	if (bHideTag[author])
+	{
+		return Plugin_Continue;
+	}
+	
 	Action result = Plugin_Continue;
 	//Call the forward
 	Call_StartForward(fMessagePreProcess);
@@ -608,6 +635,9 @@ void LoadKv()
 }
 void LoadTags(int client, KeyValues kv = null)
 {
+	if (bHideTag[client])
+		return;
+	
 	if (!IsValidClient(client, true, true))
 		return;
 	
@@ -656,7 +686,7 @@ public Action Timer_ForceTag(Handle timer)
 	if (!bCSGO)
 		return;
 	
-	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && bForceTag[i] && sTags[i][ScoreTag][0] != '\0')
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && bForceTag[i] && sTags[i][ScoreTag][0] != '\0' && !bHideTag[i])
 	{
 		char sTag[32];
 		CS_GetClientClanTag(i, sTag, sizeof(sTag));
