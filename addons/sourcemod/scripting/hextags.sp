@@ -27,6 +27,7 @@
 #include <geoip>
 #include <hexstocks>
 #include <hextags>
+#include <clientprefs>
 
 #undef REQUIRE_EXTENSIONS
 #undef REQUIRE_PLUGIN
@@ -50,6 +51,7 @@ Handle fTagsUpdated;
 Handle fMessageProcess;
 Handle fMessageProcessed;
 Handle fMessagePreProcess;
+Handle g_hPref_HideTags;
 
 DataPack dataOrder;
 
@@ -130,6 +132,8 @@ public void OnPluginStart()
 	//Event hooks
 	if (!HookEventEx("round_end", Event_RoundEnd))
 		LogError("Failed to hook \"round_end\", \"sm_hextags_roundend\" won't produce any effect.");
+		
+	g_hPref_HideTags = RegClientCookie("Hextags_Visability", "Show or hide the tags.", CookieAccess_Private);
 	
 #if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
@@ -158,6 +162,19 @@ public void OnAllPluginsLoaded()
 		CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
 }
 
+public void OnClientCookiesCached(int client)
+{
+	char sValue[8];
+	GetClientCookie(client, g_hPref_HideTags, sValue, sizeof(sValue));
+	
+	if (strlen(sValue) == 0)
+	{
+		strcopy(sValue, sizeof(sValue), "1");
+		SetClientCookie(client, g_hPref_HideTags, "1");
+	}
+	
+	bHideTag[client] = (sValue[0] != '\0' && StringToInt(sValue));
+}
 
 public void OnLibraryAdded(const char[] name)
 {
@@ -322,6 +339,8 @@ public Action Cmd_ToggleTags(int client, int args)
 		CS_SetClientClanTag(client, "");
 		ReplyToCommand(client, "[SM] Your tags are no longer visible.");
 	}
+	
+	SetClientCookie(client, g_hPref_HideTags, bHideTag[client] ? "1" : "0");
 }
 
 public Action Cmd_GetTeam(int client, int args)
