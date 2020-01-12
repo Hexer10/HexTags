@@ -27,6 +27,7 @@
 #include <geoip>
 #include <hexstocks>
 #include <hextags>
+#include <clientprefs>
 
 #undef REQUIRE_EXTENSIONS
 #undef REQUIRE_PLUGIN
@@ -50,6 +51,7 @@ Handle fTagsUpdated;
 Handle fMessageProcess;
 Handle fMessageProcessed;
 Handle fMessagePreProcess;
+Handle hVibilityCookie;
 
 DataPack dataOrder;
 
@@ -130,6 +132,8 @@ public void OnPluginStart()
 	//Event hooks
 	if (!HookEventEx("round_end", Event_RoundEnd))
 		LogError("Failed to hook \"round_end\", \"sm_hextags_roundend\" won't produce any effect.");
+		
+	hVibilityCookie = RegClientCookie("HexTags_Visibility", "Show or hide the tags.", CookieAccess_Private);
 	
 #if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
@@ -151,13 +155,17 @@ public void OnAllPluginsLoaded()
 	bSteamWorks = LibraryExists("SteamWorks");
 	
 	LoadKv();
-	if (bLate) for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
+	if (bLate) for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i)) 
+	{
+		if (!AreClientCookiesCached(i))
+			OnClientCookiesCached(i);
+		OnClientPostAdminCheck(i);
+	}
 	
 	//Timers
 	if (bCSGO)
 		CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
 }
-
 
 public void OnLibraryAdded(const char[] name)
 {
@@ -322,6 +330,8 @@ public Action Cmd_ToggleTags(int client, int args)
 		CS_SetClientClanTag(client, "");
 		ReplyToCommand(client, "[SM] Your tags are no longer visible.");
 	}
+	
+	SetClientCookie(client, hVibilityCookie, bHideTag[client] ? "0" : "1");
 }
 
 public Action Cmd_GetTeam(int client, int args)
@@ -347,6 +357,14 @@ public Action Cmd_GetVars(int client, int args)
 public void OnClientPostAdminCheck(int client)
 {
 	LoadTags(client);
+}
+
+public void OnClientCookiesCached(int client)
+{
+	char sValue[8];
+	GetClientCookie(client, hVibilityCookie, sValue, sizeof(sValue));
+	
+	bHideTag[client] = sValue[0] == '\0' ? false : !StringToInt(sValue);
 }
 
 public Action RankMe_OnPlayerLoaded(int client)
@@ -377,7 +395,6 @@ public Action RankMe_LoadTags(int client, int rank, any data)
 		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmRank}", sRank);
 		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
 	}
-	
 }
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
