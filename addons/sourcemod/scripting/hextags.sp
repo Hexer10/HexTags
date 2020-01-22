@@ -3,7 +3,7 @@
  * by: Hexah
  * https://github.com/Hexer10/HexTags
  * 
- * Copyright (C) 2017-2019 Mattia (Hexah|Hexer10|Papero)
+ * Copyright (C) 2017-2020 Mattia (Hexah|Hexer10|Papero)
  *
  * This file is part of the HexTags SourceMod Plugin.
  *
@@ -76,6 +76,7 @@ bool bHideTag[MAXPLAYERS+1];
 
 // TODO: Workaround for sm 1.11, implement eTags enum struct
 char sTags[MAXPLAYERS+1][4][128];
+char sUserTag[MAXPLAYERS+1][64];
 
 //Plugin info
 public Plugin myinfo =
@@ -251,7 +252,7 @@ public Action OnClientCommandKeyValues(int client, KeyValues kv)
 	
 	if(StrEqual(sKey, "ClanTagChanged"))
 	{
-		//RequestFrame(Frame_SetTag, GetClientUserId(client));
+		kv.GetString("tag", sUserTag[client], sizeof(sUserTag[]));
 		LoadTags(client);
 		
 		if(sTags[client][ScoreTag][0] == '\0')
@@ -265,16 +266,12 @@ public Action OnClientCommandKeyValues(int client, KeyValues kv)
 	return Plugin_Continue; 
 }
 
-public void Frame_SetTag(any client)
-{
-	LoadTags(GetClientOfUserId(client));
-}
-
 public void OnClientDisconnect(int client)
 {
 	ResetTags(client);
 	iRank[client] = -1;
 	bHideTag[client] = false;
+	sUserTag[client][0] = '\0';
 }
 
 public void warden_OnWardenCreated(int client)
@@ -284,9 +281,8 @@ public void warden_OnWardenCreated(int client)
 
 public void warden_OnWardenRemoved(int client)
 {
-	//TODO Set the original clantag
 	if (bCSGO)
-		CS_SetClientClanTag(client, "");
+		CS_SetClientClanTag(client, sUserTag[client]);
 	
 	RequestFrame(Frame_LoadTag, client);
 	
@@ -299,9 +295,8 @@ public void warden_OnDeputyCreated(int client)
 
 public void warden_OnDeputyRemoved(int client)
 {
-	//TODO Set the original clantag
 	if (bCSGO)
-		CS_SetClientClanTag(client, "");
+		CS_SetClientClanTag(client, sUserTag[client]);
 	
 	RequestFrame(Frame_LoadTag, client);
 }
@@ -327,7 +322,7 @@ public Action Cmd_ToggleTags(int client, int args)
 	else
 	{
 		bHideTag[client] = true;
-		CS_SetClientClanTag(client, "");
+		CS_SetClientClanTag(client, sUserTag[client]);
 		ReplyToCommand(client, "[SM] Your tags are no longer visible.");
 	}
 	
@@ -387,9 +382,11 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 
 public Action RankMe_LoadTags(int client, int rank, any data)
 {
+	Debug_Print("Callback load rankme-tags");
 	if (IsValidClient(client, true, true))
 	{
 		iRank[client] = rank;
+		Debug_Print("Callback valid rank %L - %i", client, rank);
 		char sRank[16];
 		IntToString(iRank[client], sRank, sizeof(sRank));
 		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmRank}", sRank);
@@ -635,6 +632,7 @@ void LoadKv()
 		SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
 	
 	GetOrder(file);
+	delete file;
 	BuildPath(Path_SM, sConfig, sizeof(sConfig), "configs/hextags.cfg"); //Get cfg file
 	
 	if (OpenFile(sConfig, "rt") == null)
@@ -968,6 +966,7 @@ void GetTags(int client, KeyValues kv, bool final = false)
 		}
 		if (bRankme && StrContains(sTags[client][ScoreTag], "{rmRank}") != -1)
 		{
+			Debug_Print("Contains rmRank");
 			RankMe_GetRank(client, RankMe_LoadTags);
 		}
 		
