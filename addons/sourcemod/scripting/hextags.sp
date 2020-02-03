@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-//#define DEBUG 1
+#define DEBUG 1
 
 #include <sourcemod>
 #include <sdktools>
@@ -53,9 +53,6 @@ Handle fMessageProcessed;
 Handle fMessagePreProcess;
 Handle hVibilityCookie;
 
-DataPack dataOrder;
-
-ConVar cv_sFlagOrder;
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
 ConVar cv_bOrderDisabled;
@@ -69,14 +66,15 @@ bool bWarden;
 bool bMyJBWarden;
 bool bGangs;
 bool bSteamWorks = true;
-bool bForceTag[MAXPLAYERS+1];
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
 bool bHideTag[MAXPLAYERS+1];
 
 // TODO: Workaround for sm 1.11, implement eTags enum struct
-char sTags[MAXPLAYERS+1][4][128];
 char sUserTag[MAXPLAYERS+1][64];
+char sTagConf[PLATFORM_MAX_PATH];
+
+CustomTags sTags[MAXPLAYERS+1];
 
 //Plugin info
 public Plugin myinfo =
@@ -117,7 +115,6 @@ public void OnPluginStart()
 {
 	//CVars
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
-	cv_sFlagOrder = CreateConVar("sm_hextags_flagorder", "ztsrqponmlkjihgfedcba", "Flags in the order they should be selected.");
 	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs");
 	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
 	cv_bOrderDisabled = CreateConVar("sm_hextags_disable_order", "0", "If 1 the hextags-order.txt file will be disabled and the order will be the default one.");
@@ -132,8 +129,8 @@ public void OnPluginStart()
 	
 	//Event hooks
 	if (!HookEventEx("round_end", Event_RoundEnd))
-		LogError("Failed to hook \"round_end\", \"sm_hextags_roundend\" won't produce any effect.");
-		
+	LogError("Failed to hook \"round_end\", \"sm_hextags_roundend\" won't produce any effect.");
+	
 	hVibilityCookie = RegClientCookie("HexTags_Visibility", "Show or hide the tags.", CookieAccess_Private);
 	
 #if defined DEBUG
@@ -146,7 +143,7 @@ public void OnAllPluginsLoaded()
 	Debug_Print("Called OnAllPlugins!");
 	
 	if (FindPluginByFile("custom-chatcolors-cp.smx") || LibraryExists("ccc"))
-		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
+	LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
 	
 	bMostActive = LibraryExists("mostactive");
 	bRankme = LibraryExists("rankme") && !cv_bDisableRankme.BoolValue;
@@ -159,13 +156,13 @@ public void OnAllPluginsLoaded()
 	if (bLate) for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i)) 
 	{
 		if (!AreClientCookiesCached(i))
-			OnClientCookiesCached(i);
+		OnClientCookiesCached(i);
 		OnClientPostAdminCheck(i);
 	}
 	
 	//Timers
 	if (bCSGO)
-		CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
+	CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
 }
 
 public void OnLibraryAdded(const char[] name)
@@ -237,12 +234,12 @@ public void OnLibraryRemoved(const char[] name)
 public Action OnClientCommandKeyValues(int client, KeyValues kv)
 {
 	if (bHideTag[client])
-		return Plugin_Continue;
+	return Plugin_Continue;
 	
 	char sKey[64];
 	
-	if (!bCSGO | !kv.GetSectionName(sKey, sizeof(sKey)))
-		return Plugin_Continue;
+	if (!bCSGO || !kv.GetSectionName(sKey, sizeof(sKey)))
+	return Plugin_Continue;
 	
 #if defined DEBUG
 	char sKV[256];
@@ -255,11 +252,11 @@ public Action OnClientCommandKeyValues(int client, KeyValues kv)
 		kv.GetString("tag", sUserTag[client], sizeof(sUserTag[]));
 		LoadTags(client);
 		
-		if(sTags[client][ScoreTag][0] == '\0')
-			return Plugin_Continue;
+		if(sTags[client].ScoreTag[0] == '\0')
+		return Plugin_Continue;
 		
-		kv.SetString("tag", sTags[client][ScoreTag]);
-		Debug_Print("[ClanTagChanged] Setted tag: %s ", sTags[client][ScoreTag]);
+		kv.SetString("tag", sTags[client].ScoreTag);
+		Debug_Print("[ClanTagChanged] Setted tag: %s ", sTags[client].ScoreTag);
 		return Plugin_Changed;
 	}
 	
@@ -282,7 +279,7 @@ public void warden_OnWardenCreated(int client)
 public void warden_OnWardenRemoved(int client)
 {
 	if (bCSGO)
-		CS_SetClientClanTag(client, sUserTag[client]);
+	CS_SetClientClanTag(client, sUserTag[client]);
 	
 	RequestFrame(Frame_LoadTag, client);
 	
@@ -296,7 +293,7 @@ public void warden_OnDeputyCreated(int client)
 public void warden_OnDeputyRemoved(int client)
 {
 	if (bCSGO)
-		CS_SetClientClanTag(client, sUserTag[client]);
+	CS_SetClientClanTag(client, sUserTag[client]);
 	
 	RequestFrame(Frame_LoadTag, client);
 }
@@ -340,10 +337,10 @@ public Action Cmd_GetTeam(int client, int args)
 #if defined DEBUG
 public Action Cmd_GetVars(int client, int args)
 {
-	ReplyToCommand(client, sTags[client][ScoreTag]);
-	ReplyToCommand(client, sTags[client][ChatTag]);
-	ReplyToCommand(client, sTags[client][ChatColor]);
-	ReplyToCommand(client, sTags[client][NameColor]);
+	ReplyToCommand(client, sTags[client].ScoreTag);
+	ReplyToCommand(client, sTags[client].ChatTag);
+	ReplyToCommand(client, sTags[client].ChatColor);
+	ReplyToCommand(client, sTags[client].NameColor);
 	return Plugin_Handled;
 }
 #endif
@@ -375,7 +372,7 @@ public Action RankMe_OnPlayerSaved(int client)
 public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	if (!cv_bParseRoundEnd.BoolValue)
-		return;
+	return;
 	
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
 }
@@ -389,8 +386,8 @@ public Action RankMe_LoadTags(int client, int rank, any data)
 		Debug_Print("Callback valid rank %L - %i", client, rank);
 		char sRank[16];
 		IntToString(iRank[client], sRank, sizeof(sRank));
-		ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmRank}", sRank);
-		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
+		ReplaceString(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmRank}", sRank);
+		CS_SetClientClanTag(client, sTags[client].ScoreTag); //Instantly load the score-tag
 	}
 }
 
@@ -418,7 +415,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	char sNewName[MAXLENGTH_NAME];
 	char sNewMessage[MAXLENGTH_MESSAGE];
 	// Rainbow name
-	if (StrEqual(sTags[author][NameColor], "{rainbow}")) 
+	if (StrEqual(sTags[author].NameColor, "{rainbow}")) 
 	{
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
@@ -439,9 +436,9 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 			if (IsCharMB(name[i]))
 			i += bytes-2;
 		}		
-		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", sTags[author][ChatTag], sTemp);
+		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", sTags[author].ChatTag, sTemp);
 	}
-	else if (StrEqual(sTags[author][NameColor], "{random}")) //Random name
+	else if (StrEqual(sTags[author].NameColor, "{random}")) //Random name
 	{
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
@@ -461,13 +458,13 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 			if (IsCharMB(name[i]))
 			i += bytes-2;
 		}		
-		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", sTags[author][ChatTag], sTemp);
+		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", sTags[author].ChatTag, sTemp);
 	}
 	else
 	{
-		Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", sTags[author][ChatTag], sTags[author][NameColor], name);
+		Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", sTags[author].ChatTag, sTags[author].NameColor, name);
 	}
-	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", sTags[author][ChatColor], message);
+	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", sTags[author].ChatColor, message);
 	
 	//Update the params
 	char sTime[16];
@@ -506,7 +503,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	}
 	
 	//Rainbow Chat
-	if (StrEqual(sTags[author][ChatColor], "{rainbow}", false))
+	if (StrEqual(sTags[author].ChatColor, "{rainbow}", false))
 	{
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rainbow}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
@@ -526,13 +523,13 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 			strcopy(c, bytes, sNewMessage[i]);
 			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetColor(++color), c);
 			if (IsCharMB(sNewMessage[i]))
-				i += bytes-2;
+			i += bytes-2;
 		}		
 		Format(sNewMessage, MAXLENGTH_MESSAGE, "%s", sTemp); 
 	}
 	
 	//Random Chat
-	if (StrEqual(sTags[author][ChatColor], "{random}", false))
+	if (StrEqual(sTags[author].ChatColor, "{random}", false))
 	{
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{random}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
@@ -551,7 +548,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 			strcopy(c, bytes, sNewMessage[i]);
 			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetRandomColor(), c);
 			if (IsCharMB(sNewMessage[i]))
-				i += bytes-2;
+			i += bytes-2;
 		}		
 		Format(sNewMessage, MAXLENGTH_MESSAGE, "%s", sTemp); 
 	}
@@ -601,55 +598,30 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	return Plugin_Changed;
 }
 
-//Functions
-char sTagConf[PLATFORM_MAX_PATH];
+KeyValues tagsKv;
 
+//Functions
 void LoadKv()
 {
-	char sConfig[PLATFORM_MAX_PATH];
-	BuildPath(Path_SM, sConfig, sizeof(sConfig), "configs/hextags-order.txt"); //Get cfg file
-	
-	if (!FileExists(sConfig))
-	{
-		File file = OpenFile(sConfig, "wt");
-		if (file == null)
-			SetFailState("Failed to created: \"%s\"", sConfig); //Check if cfg exist
-		file.WriteLine("SteamID");
-		file.WriteLine("Gang");
-		file.WriteLine("AdminGroup");
-		file.WriteLine("AdminFlags");
-		file.WriteLine("Warden");
-		file.WriteLine("Deputy");
-		file.WriteLine("NoPrime");
-		file.WriteLine("ActiveTime");
-		file.WriteLine("RankMe");
-		file.WriteLine("Team");
-		delete file;
-	}
-	
-	File file = OpenFile(sConfig, "rt");
-	if (file == null)
-		SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
-	
-	GetOrder(file);
-	delete file;
+	static char sConfig[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sConfig, sizeof(sConfig), "configs/hextags.cfg"); //Get cfg file
 	
 	if (OpenFile(sConfig, "rt") == null)
-		SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
+	SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
 	
 	KeyValues kv = new KeyValues("HexTags"); //Create the kv
 	
 	if (!kv.ImportFromFile(sConfig))
-		SetFailState("Couldn't import: \"%s\"", sConfig); //Check if file was imported properly
+	SetFailState("Couldn't import: \"%s\"", sConfig); //Check if file was imported properly
 	
 	if (!kv.GotoFirstSubKey())
-		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entries
+	LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entries
 	
 	delete kv;
 	strcopy(sTagConf, sizeof(sTagConf), sConfig);
+	delete tagsKv;
 }
-void LoadTags(int client, KeyValues kv = null)
+void LoadTags(int client)
 {
 	if (bHideTag[client])
 		return;
@@ -659,140 +631,154 @@ void LoadTags(int client, KeyValues kv = null)
 	
 	//Clear the tags when re-checking
 	ResetTags(client);
-	
-	if (kv == null)
+	 
+	if (tagsKv == null)
 	{
-		kv = new KeyValues("HexTags");
-		kv.ImportFromFile(sTagConf);
-		Debug_Print("KeyValue handle: %i", kv);
+		tagsKv = new KeyValues("HexTags");
+		tagsKv.ImportFromFile(sTagConf);
+		Debug_Print("KeyValue handle: %i", tagsKv);
 	}
-	
-	dataOrder.Reset();
-	while(dataOrder.IsReadable(1))
+	tagsKv.Rewind();
+	ParseConfig(tagsKv, client);
+}
+
+// This functions returns a CustomTags enum struct.
+void ParseConfig(KeyValues kv, int client)
+{
+	static char sSectionName[64];
+	do
 	{
-		//Debug_Print("Called: %i", dataOrder.Position);
-		bool res;
-		Function func = dataOrder.ReadFunction();
-		Call_StartFunction(INVALID_HANDLE, func);
-		Call_PushCell(client);
-		Call_PushCell(kv);
-		Call_Finish(res);
-		if (res)
+        // Check if current key is a section. Assume it has sub keys and attempt
+        // to enter the section.
+		if (kv.GotoFirstSubKey())
 		{
-			LoadTags(client, kv);
+            // Success. Confirmed that it's a sub key.
+			
+			
+			kv.GetSectionName(sSectionName, sizeof(sSectionName));
+			Debug_Print("Current key: %s", sSectionName);
+			
+			if (CheckSelector(sSectionName, sizeof(sSectionName), client)) 
+			{
+				Debug_Print("*******FOUND VALID SELECTOR -> %s.", sSectionName);
+				ParseConfig(kv, client);
+				return;
+			}
+		}
+		else
+		{
+			Debug_Print("***********SETTINGS TAGS", sSectionName);
+			GetTags(client, kv);
 			return;
 		}
-	}
+	} while (kv.GotoNextKey());
 	
-	//Check for 'All' entry
-	//Mark as depreaced
-	if (kv.JumpToKey("Default"))
+	Debug_Print("-- Section end --");
+}
+
+bool CheckSelector(char[] selector, int maxlen, int client)
+{
+	/* CHECK DEFAULT */
+	if (StrEqual(selector, "default", false))
 	{
-		LoadTags(client, kv);
-		return;
+		return true;
 	}
 	
-	GetTags(client, kv, true);
-	delete kv;
-}
-
-//Timers
-public Action Timer_ForceTag(Handle timer)
-{
-	if (!bCSGO)
-		return;
-	
-	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && bForceTag[i] && sTags[i][ScoreTag][0] != '\0' && !bHideTag[i])
-	{
-		char sTag[32];
-		CS_GetClientClanTag(i, sTag, sizeof(sTag));
-		if (StrEqual(sTag, sTags[i][ScoreTag]))
-			continue;
-		
-		LogMessage("%L was changed by an external plugin, forcing him back to the HexTags' default one!", i, sTag);
-		CS_SetClientClanTag(i, sTags[i][ScoreTag]);
-	}
-}
-
-//Frams
-public void Frame_LoadTag(any client)
-{
-	LoadTags(client);
-}
-
-//Tags selectors.
-bool Select_SteamID(int client, KeyValues kv)
-{
-	char steamid[32];
+	/* CHECK STEAMID */
+	static char steamid[32];
 	if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
 		return false;
 	
-	if (kv.JumpToKey(steamid))
+	if (StrEqual(steamid, selector)) 
 	{
 		return true;
 	}
 	
 	//Replace the STEAM_1 to STEAM_0 or viceversa
-	if (steamid[6] == '1')
-		steamid[6] = '0'; 
-	else
-		steamid[6] = '1';
-	
-	//Check again with STEAM_0/STEAM_1
-	if (kv.JumpToKey(steamid)) 
+	(steamid[6] == '1') ? (steamid[6] = '0') : (steamid[6] = '1');
+	if (StrEqual(steamid, selector)) 
 	{
 		return true;
 	}
-	return false;
-}
-
-bool Select_AdminGroup(int client, KeyValues kv)
-{
+	
+	/* PERMISSIONS RELATED CHECKS */
 	AdminId admin = GetUserAdmin(client);
 	if (admin != INVALID_ADMIN_ID)
 	{
-		char sGroup[32];
-		admin.GetGroup(0, sGroup, sizeof(sGroup));
-		Format(sGroup, sizeof(sGroup), "@%s", sGroup);
+		/* CHECK ADMIN GROUP */
+		if (selector[0] == '@')
+		{
+			static char sGroup[32];
+			ReplaceString(selector, maxlen, "@", "", false);
+			
+			GroupId group = admin.GetGroup(0, sGroup, sizeof(sGroup));
+			if (group != INVALID_GROUP_ID)
+			{
+				if (StrEqual(selector, sGroup))
+				{
+					return true;
+				}
+			}
+		}
 		
-		return kv.JumpToKey(sGroup);
+		/* CHECK ADMIN FLAGS */
+		if (strlen(selector) == 1 || selector[0] == '&')
+		{
+			ReplaceString(selector, maxlen, "&", "", false); //Remove the & symbol.
+			for (int i = 0; i < strlen(selector); i++)
+			{
+				AdminFlag flag;
+				if (FindFlagByChar(selector[i], flag))
+				{
+					if (admin.HasFlag(flag))
+					{
+						return true;
+					}
+				}
+			}
+		}
 	}
+	
+	/* CHECK PLAYER TEAM */
+	int team = GetClientTeam(client);
+	static char sTeam[32];
+	
+	GetTeamName(team, sTeam, sizeof(sTeam));
+	if (StrEqual(sTeam, selector))
+	{
+		return true;
+	}
+	
 	return false;
 }
 
-bool Select_Flags(int client, KeyValues kv)
+/*
+ @ - Group
+ & - FLAG
+
+*/
+//Timers
+public Action Timer_ForceTag(Handle timer)
 {
-	AdminId admin = GetUserAdmin(client);
-	if (admin == INVALID_ADMIN_ID)
-		return false;
+	if (!bCSGO)
+	return;
 	
-	char sFlags[32];
-	cv_sFlagOrder.GetString(sFlags, sizeof(sFlags));
-	
-	int len = strlen(sFlags);
-	Debug_Print("Flags: %s", sFlags);
-	for (int i = 0; i < len; i++)
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && sTags[i].ForceTag && sTags[i].ScoreTag[0] != '\0' && !bHideTag[i])
 	{
-		char sFlag[1];
-		sFlag[0] = sFlags[i];
+		char sTag[32];
+		CS_GetClientClanTag(i, sTag, sizeof(sTag));
+		if (StrEqual(sTag, sTags[i].ScoreTag))
+		continue;
 		
-		AdminFlag flag;
-		if (!FindFlagByChar(sFlags[i], flag))
-		{
-			LogError("Failed to read flag: %s", sFlag);
-			return false;
-		}
-		
-		
-		if (admin.HasFlag(flag))
-		{
-			if (kv.JumpToKey(sFlag))
-				return true;
-			
-			continue;
-		}
+		LogMessage("%L was changed by an external plugin, forcing him back to the HexTags' default one!", i, sTag);
+		CS_SetClientClanTag(i, sTags[i].ScoreTag);
 	}
-	return false;
+}
+
+//Frames
+public void Frame_LoadTag(any client)
+{
+	LoadTags(client);
 }
 
 bool Select_Time(int client, KeyValues kv)
@@ -801,9 +787,9 @@ bool Select_Time(int client, KeyValues kv)
 	bool bReturn;
 	
 	if (!kv.GotoFirstSubKey())
-		return false;
-		
-		
+	return false;
+	
+	
 	int iPlayTime = MostActive_GetPlayTimeTotal(client);
 	do
 	{
@@ -811,13 +797,13 @@ bool Select_Time(int client, KeyValues kv)
 		kv.GetSectionName(sSecs, sizeof(sSecs));
 		
 		if (sSecs[0] != '#') //Check if it's a "time-format"
-			continue;
+		continue;
 		
 		Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
 		int iReqTime = StringToInt(sSecs);
 		if (iReqTime < iPlayTime || iOldTime > iReqTime) //Select only the higher time.
-			continue;
-			
+		continue;
+		
 		iOldTime = iReqTime; //Save the time
 		bReturn = true; 
 		
@@ -825,7 +811,7 @@ bool Select_Time(int client, KeyValues kv)
 	while (kv.GotoNextKey());
 	
 	if (bReturn)
-		return true;
+	return true;
 	
 	kv.GoBack();
 	return false;
@@ -837,19 +823,19 @@ bool Select_Rankme(int client, KeyValues kv)
 	bool bReturn;
 	
 	if (!kv.GotoFirstSubKey())
-		return false;
+	return false;
 	do
 	{
 		char sSecs[16];
 		kv.GetSectionName(sSecs, sizeof(sSecs));
 		
 		if (sSecs[0] != '!') //Check if it's a "time-format"
-			continue;
+		continue;
 		
 		Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
 		
 		if (iOldRank >= StringToInt(sSecs)) //Select only the higher time.
-			continue;
+		continue;
 		
 		if (StringToInt(sSecs) <= RankMe_GetPoints(client))
 		{
@@ -860,19 +846,10 @@ bool Select_Rankme(int client, KeyValues kv)
 	while (kv.GotoNextKey());
 	
 	if (bReturn)
-		return true;
+	return true;
 	
 	kv.GoBack();
 	return false;
-}
-
-bool Select_Team(int client, KeyValues kv)
-{
-	char sTeam[32];
-	int team = GetClientTeam(client);
-	GetTeamName(team, sTeam, sizeof(sTeam));
-	
-	return kv.JumpToKey(sTeam);
 }
 
 bool Select_Warden(int client, KeyValues kv)
@@ -911,279 +888,115 @@ bool Select_Gang(int client, KeyValues kv)
 	}
 	return false;
 }
-//Stocks
 
-//TODO Remove final parameter.
-void GetTags(int client, KeyValues kv, bool final = false)
+//Stocks
+void GetTags(int client, KeyValues kv)
 {
-	if (!final)
-	{
-		LoadTags(client, kv);
-		return;
-	}
-	
-	char sSection[64];
+	static char sSection[64];
 	kv.GetSectionName(sSection, sizeof(sSection));
 	Debug_Print("Section: %s", sSection);
 	
-	if (StrEqual(sSection, "HexTags", false))
-		return;
+	kv.GetString("ScoreTag", sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "");
+	kv.GetString("ChatTag", sTags[client].ChatTag, sizeof(CustomTags::ChatTag), "");
+	kv.GetString("ChatColor", sTags[client].ChatColor, sizeof(CustomTags::ChatColor), "");
+	kv.GetString("NameColor", sTags[client].NameColor, sizeof(CustomTags::NameColor), "{teamcolor}");
+	sTags[client].ForceTag = kv.GetNum("ForceTag", 1) == 1;
 	
 	Call_StartForward(fTagsUpdated);
 	Call_PushCell(client);
 	Call_Finish();
 	
-	kv.GetString("ScoreTag", sTags[client][ScoreTag], sizeof(sTags[][]), "");
-	kv.GetString("ChatTag", sTags[client][ChatTag], sizeof(sTags[][]), "");
-	kv.GetString("ChatColor", sTags[client][ChatColor], sizeof(sTags[][]), "");
-	kv.GetString("NameColor", sTags[client][NameColor], sizeof(sTags[][]), "{teamcolor}");
-	bForceTag[client] = kv.GetNum("ForceTag", 1) == 1;
-	
-	
-	if (sTags[client][ScoreTag][0] != '\0' && bCSGO)
+	if (sTags[client].ScoreTag[0] != '\0' && bCSGO)
 	{
 		//Update params
-		if (StrContains(sTags[client][ScoreTag], "{country}") != -1)
+		if (StrContains(sTags[client].ScoreTag, "{country}") != -1)
 		{
-			char sIP[32];
-			char sCountry[3];
+			static char sIP[32];
+			static char sCountry[3];
 			if (!GetClientIP(client, sIP, sizeof(sIP)))
 				LogError("Unable to get %L ip!", client);
 			GeoipCode2(sIP, sCountry);
-			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{country}", sCountry);
+			ReplaceString(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{country}", sCountry);
 		}
-		if (bGangs && StrContains(sTags[client][ScoreTag], "{gang}") != -1)
+		if (bGangs && StrContains(sTags[client].ScoreTag, "{gang}") != -1)
 		{
-			char sGang[32];
+			static char sGang[32];
 			Gangs_HasGang(client) ?  Gangs_GetGangName(client, sGang, sizeof(sGang)) : cv_sDefaultGang.GetString(sGang, sizeof(sGang));
-			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{gang}", sGang);
+			ReplaceString(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{gang}", sGang);
 		}
-		if (bRankme && StrContains(sTags[client][ScoreTag], "{rmPoints}") != -1)
+		if (bRankme && StrContains(sTags[client].ScoreTag, "{rmPoints}") != -1)
 		{
-			char sPoints[16];
+			static char sPoints[16];
 			IntToString(RankMe_GetPoints(client), sPoints, sizeof(sPoints));
-			ReplaceString(sTags[client][ScoreTag], sizeof(sTags[][]), "{rmPoints}", sPoints);
+			ReplaceString(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmPoints}", sPoints);
 		}
-		if (bRankme && StrContains(sTags[client][ScoreTag], "{rmRank}") != -1)
+		if (bRankme && StrContains(sTags[client].ScoreTag, "{rmRank}") != -1)
 		{
 			Debug_Print("Contains rmRank");
 			RankMe_GetRank(client, RankMe_LoadTags);
 		}
 		
-		Debug_Print("Setted tag: %s", sTags[client][ScoreTag]);
-		CS_SetClientClanTag(client, sTags[client][ScoreTag]); //Instantly load the score-tag
+		Debug_Print("Setted tag: %s", sTags[client].ScoreTag);
+		CS_SetClientClanTag(client, sTags[client].ScoreTag); //Instantly load the score-tag
 	}
-	if (StrContains(sTags[client][ChatTag], "{rainbow}") == 0) 
+	if (StrContains(sTags[client].ChatTag, "{rainbow}") == 0) 
 	{
-			Debug_Print("Found {rainbow} in ChatTag");
-			ReplaceString(sTags[client][ChatTag], sizeof(sTags[][]), "{rainbow}", "");
-			char sTemp[MAXLENGTH_MESSAGE]; 
-			
-			int color;
-			int len = strlen(sTags[client][ChatTag]);
-			for(int i = 0; i < len; i++)
-			{
-				if (IsCharSpace(sTags[client][ChatTag][i]))
-				{
-					Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sTags[client][ChatTag][i]);
-					continue;
-				}
-				
-				int bytes = GetCharBytes(sTags[client][ChatTag][i])+1;
-				char[] c = new char[bytes];
-				strcopy(c, bytes, sTags[client][ChatTag][i]);
-				Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetColor(++color), c);
-				if (IsCharMB(sTags[client][ChatTag][i]))
-					i += bytes-2;
-			}
-			strcopy(sTags[client][ChatTag], sizeof(sTags[][]), sTemp);
-			Debug_Print("Replaced ChatTag with %s", sTags[client][ChatTag]);
-	}
-	if (StrContains(sTags[client][ChatTag], "{random}") == 0) 
-	{
-		ReplaceString(sTags[client][ChatTag], sizeof(sTags[][]), "{random}", "");
-		char sTemp[MAXLENGTH_MESSAGE];
-		int len = strlen(sTags[client][ChatTag]);
+		Debug_Print("Found {rainbow} in ChatTag");
+		ReplaceString(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), "{rainbow}", "");
+		char sTemp[MAXLENGTH_MESSAGE]; 
+		
+		int color;
+		int len = strlen(sTags[client].ChatTag);
 		for(int i = 0; i < len; i++)
 		{
-			if (IsCharSpace(sTags[client][ChatTag][i]))
+			if (IsCharSpace(sTags[client].ChatTag[i]))
 			{
-				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sTags[client][ChatTag][i]);
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sTags[client].ChatTag[i]);
 				continue;
 			}
 			
-			int bytes = GetCharBytes(sTags[client][ChatTag][i])+1;
+			int bytes = GetCharBytes(sTags[client].ChatTag[i])+1;
 			char[] c = new char[bytes];
-			strcopy(c, bytes, sTags[client][ChatTag][i]);
-			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetRandomColor(), c);
-			if (IsCharMB(sTags[client][ChatTag][i]))
+			strcopy(c, bytes, sTags[client].ChatTag[i]);
+			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetColor(++color), c);
+			if (IsCharMB(sTags[client].ChatTag[i]))
 			i += bytes-2;
 		}
-		strcopy(sTags[client][ChatTag], sizeof(sTags[][]), sTemp);
+		strcopy(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), sTemp);
+		Debug_Print("Replaced ChatTag with %s", sTags[client].ChatTag);
+	}
+	if (StrContains(sTags[client].ChatTag, "{random}") == 0) 
+	{
+		ReplaceString(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), "{random}", "");
+		char sTemp[MAXLENGTH_MESSAGE];
+		int len = strlen(sTags[client].ChatTag);
+		for(int i = 0; i < len; i++)
+		{
+			if (IsCharSpace(sTags[client].ChatTag[i]))
+			{
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sTags[client].ChatTag[i]);
+				continue;
+			}
+			
+			int bytes = GetCharBytes(sTags[client].ChatTag[i])+1;
+			char[] c = new char[bytes];
+			strcopy(c, bytes, sTags[client].ChatTag[i]);
+			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetRandomColor(), c);
+			if (IsCharMB(sTags[client].ChatTag[i]))
+			i += bytes-2;
+		}
+		strcopy(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), sTemp);
 	}
 	Debug_Print("Succesfully setted tags");
 }
 
 void ResetTags(int client)
 {
-	strcopy(sTags[client][ScoreTag], sizeof(sTags[][]), "");
-	strcopy(sTags[client][ChatTag], sizeof(sTags[][]), "");
-	strcopy(sTags[client][ChatColor], sizeof(sTags[][]), "");
-	strcopy(sTags[client][NameColor], sizeof(sTags[][]), "");
-	bForceTag[client] = true;
-}
-
-void GetOrder(File file)
-{
-	if (dataOrder != null)
-		delete dataOrder;
-	
-	dataOrder = new DataPack();
-	if (cv_bOrderDisabled.BoolValue)
-	{
-		dataOrder.WriteFunction(Select_SteamID);
-		dataOrder.WriteFunction(Select_AdminGroup);
-		dataOrder.WriteFunction(Select_Flags);
-		if (!bWarden)
-		{
-			LogMessage("[HexTags] Disabling Warden support...");
-		}
-		else
-		{
-			dataOrder.WriteFunction(Select_Warden);
-		}
-		if (!bMyJBWarden)
-		{
-			LogMessage("[HexTags] Disabling (MyJB)Warden support...");
-		}
-		else
-		{
-			dataOrder.WriteFunction(Select_Deputy);
-		}
-		if (!bMostActive)
-		{
-			LogMessage("[HexTags] Disabling MostActive support...");
-		}
-		else
-		{
-			dataOrder.WriteFunction(Select_Time);
-		}
-		if (!bRankme)
-		{
-			LogMessage("[HexTags] Disabling RankMe support...");
-		}
-		else
-		{
-			dataOrder.WriteFunction(Select_Rankme);
-		}
-		dataOrder.WriteFunction(Select_Team);
-		if (!bSteamWorks)
-		{
-			LogMessage("[HexTags] Disabling SteamWorks support...");
-		}
-		else
-		{
-			dataOrder.WriteFunction(Select_NoPrime);
-		}
-		if (!bGangs)
-		{
-			LogMessage("[HexTags] Disabling Gangs support...");
-		}
-		else
-		{
-			dataOrder.WriteFunction(Select_Gang);
-		}
-		return;
-	}
-	char sLine[32];
-	while(file.ReadLine(sLine, sizeof(sLine)))
-	{
-		TrimString(sLine);
-		if (StrEqual(sLine, "SteamID", false))
-		{
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_SteamID);
-		}
-		else if (StrEqual(sLine, "AdminGroup", false))
-		{
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_AdminGroup);
-		}
-		else if (StrEqual(sLine, "AdminFlags", false))
-		{
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_Flags);
-		}
-		else if (StrEqual(sLine, "Warden", false))
-		{
-			if (!bWarden)
-			{
-				LogMessage("[HexTags] Disabling Warden support...");
-				continue;
-			}
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_Warden);
-		}
-		else if (StrEqual(sLine, "Deputy", false))
-		{
-			if (!bMyJBWarden)
-			{
-				LogMessage("[HexTags] Disabling (MyJB)Warden support...");
-				continue;
-			}
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_Deputy);
-		}
-		else if (StrEqual(sLine, "ActiveTime", false))
-		{
-			if (!bMostActive)
-			{
-				LogMessage("[HexTags] Disabling MostActive support...");
-				continue;
-			}
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_Time);
-		}
-		else if (StrEqual(sLine, "RankMe", false))
-		{
-			if (!bRankme)
-			{
-				LogMessage("[HexTags] Disabling RankMe support...");
-				continue;
-			}
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_Rankme);
-		}
-		else if (StrEqual(sLine, "Team", false))
-		{
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_Team);
-		}
-		else if (StrEqual(sLine, "NoPrime", false))
-		{
-			if (!bSteamWorks)
-			{
-				LogMessage("[HexTags] Disabling SteamWorks support...");
-				continue;
-			}
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_NoPrime);
-		}
-		else if (StrEqual(sLine, "Gang", false))
-		{
-			if (!bGangs)
-			{
-				LogMessage("[HexTags] Disabling Gangs support...");
-				continue;
-			}
-			Debug_Print("Added: %s", sLine);
-			dataOrder.WriteFunction(Select_Gang);
-		}
-		else
-		{
-			LogError("Invalid selector: %s", sLine);
-		}
-	}
+	strcopy(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "");
+	strcopy(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), "");
+	strcopy(sTags[client].ChatColor, sizeof(CustomTags::ChatColor), "");
+	strcopy(sTags[client].NameColor, sizeof(CustomTags::NameColor), "");
+	sTags[client].ForceTag = true;
 }
 
 int GetRandomColor()
@@ -1213,7 +1026,7 @@ int GetRandomColor()
 int GetColor(int color)
 {
 	while(color > 7)
-		color -= 7;
+	color -= 7;
 	
 	switch(color)
 	{
@@ -1244,7 +1057,7 @@ public int Native_GetClientTag(Handle plugin, int numParams)
 	
 	eTags Tag = view_as<eTags>(GetNativeCell(2));
 	
-	SetNativeString(3, sTags[client][Tag], GetNativeCell(4));
+//	SetNativeString(3, sTags[client][Tag], GetNativeCell(4));
 	return 0;
 }
 
@@ -1265,9 +1078,9 @@ public int Native_SetClientTag(Handle plugin, int numParams)
 	eTags Tag = view_as<eTags>(GetNativeCell(2));
 	GetNativeString(3, sTag, sizeof(sTag));
 	
-	
+	Debug_Print("Called Native_SetClientTag(%i, %i, %s)", client, Tag, sTag);
 	ReplaceString(sTag, sizeof(sTag), "{darkgray}", "{gray2}");
-	strcopy(sTags[client][Tag], sizeof(sTags[][]), sTag);
+//	strcopy(sTags[client][Tag], sizeof(sTags[][]), sTag);
 	return 0;
 }
 
