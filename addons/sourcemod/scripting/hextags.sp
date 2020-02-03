@@ -55,7 +55,6 @@ Handle hVibilityCookie;
 
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
-ConVar cv_bOrderDisabled;
 ConVar cv_bDisableRankme;
 
 bool bCSGO;
@@ -66,11 +65,10 @@ bool bWarden;
 bool bMyJBWarden;
 bool bGangs;
 bool bSteamWorks = true;
-
-int iRank[MAXPLAYERS+1] = {-1, ...};
 bool bHideTag[MAXPLAYERS+1];
 
-// TODO: Workaround for sm 1.11, implement eTags enum struct
+int iRank[MAXPLAYERS+1] = {-1, ...};
+
 char sUserTag[MAXPLAYERS+1][64];
 char sTagConf[PLATFORM_MAX_PATH];
 
@@ -79,7 +77,7 @@ CustomTags sTags[MAXPLAYERS+1];
 //Plugin info
 public Plugin myinfo =
 {
-	name = "hextags",
+	name = "HexTags",
 	author = PLUGIN_AUTHOR,
 	description = "Edit Tags & Colors!",
 	version = PLUGIN_VERSION,
@@ -113,11 +111,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 //TODO: Cache client ip instead of getting it every time.
 public void OnPluginStart()
 {
-	//CVars
+	//ConVars
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
 	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs");
 	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
-	cv_bOrderDisabled = CreateConVar("sm_hextags_disable_order", "0", "If 1 the hextags-order.txt file will be disabled and the order will be the default one.");
 	cv_bDisableRankme = CreateConVar("sm_hextags_disable_rankme", "0", "Set to 1 if you're having issues with rankme releted APIs.");
 	
 	AutoExecConfig();
@@ -648,17 +645,12 @@ void ParseConfig(KeyValues kv, int client)
 	static char sSectionName[64];
 	do
 	{
-        // Check if current key is a section. Assume it has sub keys and attempt
-        // to enter the section.
 		if (kv.GotoFirstSubKey())
 		{
-            // Success. Confirmed that it's a sub key.
-			
-			
 			kv.GetSectionName(sSectionName, sizeof(sSectionName));
 			Debug_Print("Current key: %s", sSectionName);
 			
-			if (CheckSelector(sSectionName, sizeof(sSectionName), client)) 
+			if (CheckSelector(sSectionName, client)) 
 			{
 				Debug_Print("*******FOUND VALID SELECTOR -> %s.", sSectionName);
 				ParseConfig(kv, client);
@@ -676,7 +668,7 @@ void ParseConfig(KeyValues kv, int client)
 	Debug_Print("-- Section end --");
 }
 
-bool CheckSelector(char[] selector, int maxlen, int client)
+bool CheckSelector(const char[] selector, int client)
 {
 	/* CHECK DEFAULT */
 	if (StrEqual(selector, "default", false))
@@ -709,23 +701,33 @@ bool CheckSelector(char[] selector, int maxlen, int client)
 		if (selector[0] == '@')
 		{
 			static char sGroup[32];
-			ReplaceString(selector, maxlen, "@", "", false);
 			
 			GroupId group = admin.GetGroup(0, sGroup, sizeof(sGroup));
 			if (group != INVALID_GROUP_ID)
 			{
-				if (StrEqual(selector, sGroup))
+				if (StrEqual(selector[1], sGroup))
 				{
 					return true;
 				}
 			}
 		}
 		
-		/* CHECK ADMIN FLAGS */
-		if (strlen(selector) == 1 || selector[0] == '&')
+		/* CHECK ADMIN FLAGS (2)*/
+		if (strlen(selector) == 1)
 		{
-			ReplaceString(selector, maxlen, "&", "", false); //Remove the & symbol.
-			for (int i = 0; i < strlen(selector); i++)
+			AdminFlag flag;
+			if (FindFlagByChar(selector[0], flag))
+			{
+				if (admin.HasFlag(flag))
+				{
+					return true;
+				}
+			}
+		}
+		
+		if (selector[0] == '&')
+		{
+			for (int i = 1; i < strlen(selector); i++)
 			{
 				AdminFlag flag;
 				if (FindFlagByChar(selector[i], flag))
@@ -749,14 +751,58 @@ bool CheckSelector(char[] selector, int maxlen, int client)
 		return true;
 	}
 	
+	/* CHECK TIME */
+	if (bMostActive && selector[0] == '#')
+	{	
+		int iPlayTime = MostActive_GetPlayTimeTotal(client);
+		if (iPlayTime >= StringToInt(selector[1]))
+		{
+			return true;
+		}
+	}
+	
+	/* CHECK WARDEN */
+	if (bWarden && StrEqual(selector, "warden", false) && warden_iswarden(client))
+	{
+		return true;
+	}
+	
+	/* CHECK DEPUTY */
+	if (bMyJBWarden && StrEqual(selector, "deputy", false) && warden_deputy_isdeputy(client))
+	{
+		return true;
+	}
+	
+	/* CHECK PRIME */
+	if (bSteamWorks && StrEqual(selector, "NoPrime", false))
+	{
+		if (k_EUserHasLicenseResultDoesNotHaveLicense == SteamWorks_HasLicenseForApp(client, 624820))
+		{
+			return true;
+		}
+	}
+	
+	/* CHECK GANG */
+	if (bGangs && StrEqual(selector, "Gang", false))
+	{
+		if (Gangs_HasGang(client))
+		{
+			return true;
+		}
+	}
+	
+	/* CHECK RANKME */
+	if (bRankme && selector[0] == '!')
+	{
+		int iPoints = RankMe_GetPoints(client);
+		if (iPoints >= StringToInt(selector))
+		{
+			return true;
+		}
+	}
 	return false;
 }
 
-/*
- @ - Group
- & - FLAG
-
-*/
 //Timers
 public Action Timer_ForceTag(Handle timer)
 {
@@ -779,114 +825,6 @@ public Action Timer_ForceTag(Handle timer)
 public void Frame_LoadTag(any client)
 {
 	LoadTags(client);
-}
-
-bool Select_Time(int client, KeyValues kv)
-{
-	int iOldTime;
-	bool bReturn;
-	
-	if (!kv.GotoFirstSubKey())
-	return false;
-	
-	
-	int iPlayTime = MostActive_GetPlayTimeTotal(client);
-	do
-	{
-		char sSecs[16];
-		kv.GetSectionName(sSecs, sizeof(sSecs));
-		
-		if (sSecs[0] != '#') //Check if it's a "time-format"
-		continue;
-		
-		Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
-		int iReqTime = StringToInt(sSecs);
-		if (iReqTime < iPlayTime || iOldTime > iReqTime) //Select only the higher time.
-		continue;
-		
-		iOldTime = iReqTime; //Save the time
-		bReturn = true; 
-		
-	}
-	while (kv.GotoNextKey());
-	
-	if (bReturn)
-	return true;
-	
-	kv.GoBack();
-	return false;
-}
-
-bool Select_Rankme(int client, KeyValues kv)
-{
-	int iOldRank;
-	bool bReturn;
-	
-	if (!kv.GotoFirstSubKey())
-	return false;
-	do
-	{
-		char sSecs[16];
-		kv.GetSectionName(sSecs, sizeof(sSecs));
-		
-		if (sSecs[0] != '!') //Check if it's a "time-format"
-		continue;
-		
-		Format(sSecs, sizeof(sSecs), "%s", sSecs[1]); //Cut the '#' at the start
-		
-		if (iOldRank >= StringToInt(sSecs)) //Select only the higher time.
-		continue;
-		
-		if (StringToInt(sSecs) <= RankMe_GetPoints(client))
-		{
-			iOldRank = StringToInt(sSecs); //Save the time
-			bReturn = true; 
-		}
-	}
-	while (kv.GotoNextKey());
-	
-	if (bReturn)
-	return true;
-	
-	kv.GoBack();
-	return false;
-}
-
-bool Select_Warden(int client, KeyValues kv)
-{
-	if (warden_iswarden(client) && kv.JumpToKey("warden"))
-	{
-		Debug_Print("Called Select_Warden: true");
-		return true;
-	}
-	return false;
-}
-
-bool Select_Deputy(int client, KeyValues kv)
-{
-	if (warden_deputy_isdeputy(client) && kv.JumpToKey("deputy"))
-	{
-		return true;
-	}
-	return false;
-}
-
-bool Select_NoPrime(int client, KeyValues kv)
-{
-	if (k_EUserHasLicenseResultDoesNotHaveLicense == SteamWorks_HasLicenseForApp(client, 624820) && kv.JumpToKey("NoPrime"))
-	{
-		return true;
-	}
-	return false;
-}
-
-bool Select_Gang(int client, KeyValues kv)
-{
-	if (Gangs_HasGang(client) && kv.JumpToKey("Gang"))
-	{
-		return true;
-	}
-	return false;
 }
 
 //Stocks
@@ -1055,9 +993,26 @@ public int Native_GetClientTag(Handle plugin, int numParams)
 		return ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not connected", client);
 	}
 	
-	eTags Tag = view_as<eTags>(GetNativeCell(2));
-	
-//	SetNativeString(3, sTags[client][Tag], GetNativeCell(4));
+	eTags tag = view_as<eTags>(GetNativeCell(2));
+	switch (tag)
+	{
+		case (ScoreTag): 
+		{
+			SetNativeString(3, sTags[client].ScoreTag, GetNativeCell(4));
+		}
+		case (ChatTag): 
+		{
+			SetNativeString(3, sTags[client].ChatTag, GetNativeCell(4));
+		}
+		case (ChatColor): 
+		{
+			SetNativeString(3, sTags[client].ChatColor, GetNativeCell(4));
+		}
+		case (NameColor): 
+		{
+			SetNativeString(3, sTags[client].NameColor, GetNativeCell(4));
+		}
+	}
 	return 0;
 }
 
@@ -1074,12 +1029,35 @@ public int Native_SetClientTag(Handle plugin, int numParams)
 		return ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not connected", client);
 	}
 	
-	char sTag[32];
-	eTags Tag = view_as<eTags>(GetNativeCell(2));
-	GetNativeString(3, sTag, sizeof(sTag));
+	char sTag[64];
+	eTags tag = view_as<eTags>(GetNativeCell(2));
 	
-	Debug_Print("Called Native_SetClientTag(%i, %i, %s)", client, Tag, sTag);
+	GetNativeString(3, sTag, sizeof(sTag));
 	ReplaceString(sTag, sizeof(sTag), "{darkgray}", "{gray2}");
+	
+	switch (tag)
+	{
+		case (ScoreTag): 
+		{
+			strcopy(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), sTag);
+		}
+		case (ChatTag): 
+		{
+			strcopy(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), sTag);
+		}
+		case (ChatColor): 
+		{
+			strcopy(sTags[client].ChatColor, sizeof(CustomTags::ChatColor), sTag);
+		}
+		case (NameColor): 
+		{
+			strcopy(sTags[client].NameColor, sizeof(CustomTags::NameColor), sTag);
+		}
+	}
+	
+	
+	Debug_Print("Called Native_SetClientTag(%i, %i, %s)", client, tag, sTag);
+	
 //	strcopy(sTags[client][Tag], sizeof(sTags[][]), sTag);
 	return 0;
 }
