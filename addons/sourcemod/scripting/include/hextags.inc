@@ -3,7 +3,7 @@
  * by: Hexah
  * https://github.com/Hexer10/HexTags
  * 
- * Copyright (C) 2017-2019 Mattia (Hexah|Hexer10|Papero)
+ * Copyright (C) 2017-2020 Mattia (Hexah|Hexer10|Papero)
  *
  * This file is part of the HexTags SourceMod Plugin.
  *
@@ -52,6 +52,15 @@ public void __pl_hextags_SetNTVOptional()
 	MarkNativeAsOptional("HexTags_ResetClientTag");
 }
 #endif
+
+enum struct CustomTags 
+{
+	char ScoreTag[32];
+	char ChatTag[MAXLENGTH_NAME];
+	char ChatColor[32];
+	char NameColor[32];
+	bool ForceTag;
+}
 
 enum eTags
 {
