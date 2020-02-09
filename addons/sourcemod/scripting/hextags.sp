@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-//#define DEBUG 1
+#define DEBUG 1
 
 #include <sourcemod>
 #include <sdktools>
@@ -52,6 +52,7 @@ Handle fMessageProcess;
 Handle fMessageProcessed;
 Handle fMessagePreProcess;
 Handle hVibilityCookie;
+Handle hSelTagCookie;
 
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
@@ -68,16 +69,20 @@ bool bSteamWorks = true;
 bool bHideTag[MAXPLAYERS+1];
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
+int iNextDefTag;
+int iSelTagId[MAXPLAYERS+1];
 
 char sUserTag[MAXPLAYERS+1][64];
 char sTagConf[PLATFORM_MAX_PATH];
 
-CustomTags sTags[MAXPLAYERS+1];
+ArrayList userTags[MAXPLAYERS+1];
+CustomTags selectedTags[MAXPLAYERS+1];
+KeyValues tagsKv;
 
 //Plugin info
 public Plugin myinfo =
 {
-	name = "HexTags",
+	name = "hextags",
 	author = PLUGIN_AUTHOR,
 	description = "Edit Tags & Colors!",
 	version = PLUGIN_VERSION,
@@ -122,6 +127,7 @@ public void OnPluginStart()
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_GENERIC, "Toggle the visibility of your tags");
+	RegConsoleCmd("sm_tagslist", Cmd_TagsList, "Select your tag!");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
 	//Event hooks
@@ -129,6 +135,7 @@ public void OnPluginStart()
 	LogError("Failed to hook \"round_end\", \"sm_hextags_roundend\" won't produce any effect.");
 	
 	hVibilityCookie = RegClientCookie("HexTags_Visibility", "Show or hide the tags.", CookieAccess_Private);
+	hSelTagCookie = RegClientCookie("HexTags_SelectedTag", "Selected Tag", CookieAccess_Private);
 	
 #if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
@@ -152,8 +159,10 @@ public void OnAllPluginsLoaded()
 	LoadKv();
 	if (bLate) for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i)) 
 	{
+		OnClientPutInServer(i);
 		if (!AreClientCookiesCached(i))
-		OnClientCookiesCached(i);
+			OnClientCookiesCached(i);
+		
 		OnClientPostAdminCheck(i);
 	}
 	
@@ -226,7 +235,6 @@ public void OnLibraryRemoved(const char[] name)
 	}
 }
 
-
 //Thanks to https://forums.alliedmods.net/showpost.php?p=2573907&postcount=6
 public Action OnClientCommandKeyValues(int client, KeyValues kv)
 {
@@ -249,11 +257,11 @@ public Action OnClientCommandKeyValues(int client, KeyValues kv)
 		kv.GetString("tag", sUserTag[client], sizeof(sUserTag[]));
 		LoadTags(client);
 		
-		if(sTags[client].ScoreTag[0] == '\0')
+		if(selectedTags[client].ScoreTag[0] == '\0')
 		return Plugin_Continue;
 		
-		kv.SetString("tag", sTags[client].ScoreTag);
-		Debug_Print("[ClanTagChanged] Setted tag: %s ", sTags[client].ScoreTag);
+		kv.SetString("tag", selectedTags[client].ScoreTag);
+		Debug_Print("[ClanTagChanged] Setted tag: %s ", selectedTags[client].ScoreTag);
 		return Plugin_Changed;
 	}
 	
@@ -266,6 +274,7 @@ public void OnClientDisconnect(int client)
 	iRank[client] = -1;
 	bHideTag[client] = false;
 	sUserTag[client][0] = '\0';
+	delete userTags[client];
 }
 
 public void warden_OnWardenCreated(int client)
@@ -323,8 +332,74 @@ public Action Cmd_ToggleTags(int client, int args)
 	SetClientCookie(client, hVibilityCookie, bHideTag[client] ? "0" : "1");
 }
 
+public Action Cmd_TagsList(int client, int args)
+{
+	if (!client)
+	{
+		ReplyToCommand(client, "[SM] In-game only command.");
+		return Plugin_Handled;
+	}
+	
+	if (userTags[client] == null)
+	{
+		ReplyToCommand(client, "[SM] Tags not yet loaded.");
+		return Plugin_Handled;
+	}
+	
+	if (userTags[client].Length == 0)
+	{
+		ReplyToCommand(client, "[SM] No tags available.");
+		return Plugin_Handled;
+	}
+	
+	Menu menu = new Menu(Handler_TagsMenu);
+	menu.SetTitle("Choose your tag:");
+	static char sIndex[16];
+	int len = userTags[client].Length;
+	CustomTags tags;
+	for (int i = 0; i < len; i++)
+	{
+		userTags[client].GetArray(i, tags, sizeof(tags));
+		IntToString(i, sIndex, sizeof(sIndex));
+		menu.AddItem(sIndex, tags.TagName);
+	}
+	menu.Display(client, MENU_TIME_FOREVER);
+	return Plugin_Handled;
+}
+
+public int Handler_TagsMenu(Menu menu, MenuAction action, int param1, int param2)
+{
+	if (action == MenuAction_End)
+	{
+		delete menu;
+	}
+	else if (action == MenuAction_Select)
+	{
+		static char sIndex[16];
+		menu.GetItem(param2, sIndex, sizeof(sIndex));
+		userTags[param1].GetArray(StringToInt(sIndex), selectedTags[param1], sizeof(CustomTags));
+		if (selectedTags[param1].ScoreTag[0] != '\0')
+		{
+			CS_SetClientClanTag(param1, selectedTags[param1].ScoreTag);
+		}
+		iSelTagId[param1] = selectedTags[param1].SectionId;
+		
+		static char sValue[32];
+		IntToString(iSelTagId[param1], sValue, sizeof(sValue));
+		SetClientCookie(param1, hSelTagCookie, sValue);
+		PrintToChat(param1, "[SM] Setted %s tags", selectedTags[param1].TagName);
+	}
+	
+}
+
 public Action Cmd_GetTeam(int client, int args)
 {
+	if (!client)
+	{
+		ReplyToCommand(client, "[SM] In-game only command.");
+		return Plugin_Handled;
+	}
+	
 	char sTeam[32];
 	GetTeamName(GetClientTeam(client), sTeam, sizeof(sTeam));
 	ReplyToCommand(client, "[SM] Current team name: %s", sTeam);
@@ -334,15 +409,21 @@ public Action Cmd_GetTeam(int client, int args)
 #if defined DEBUG
 public Action Cmd_GetVars(int client, int args)
 {
-	ReplyToCommand(client, sTags[client].ScoreTag);
-	ReplyToCommand(client, sTags[client].ChatTag);
-	ReplyToCommand(client, sTags[client].ChatColor);
-	ReplyToCommand(client, sTags[client].NameColor);
+	ReplyToCommand(client, selectedTags[client].ScoreTag);
+	ReplyToCommand(client, selectedTags[client].ChatTag);
+	ReplyToCommand(client, selectedTags[client].ChatColor);
+	ReplyToCommand(client, selectedTags[client].NameColor);
 	return Plugin_Handled;
 }
 #endif
 
 //Events
+public void OnClientPutInServer(int client)
+{
+	delete userTags[client];
+	userTags[client] = new ArrayList(sizeof(CustomTags));
+}
+
 public void OnClientPostAdminCheck(int client)
 {
 	LoadTags(client);
@@ -350,10 +431,23 @@ public void OnClientPostAdminCheck(int client)
 
 public void OnClientCookiesCached(int client)
 {
-	char sValue[8];
+	static char sValue[32];
 	GetClientCookie(client, hVibilityCookie, sValue, sizeof(sValue));
 	
 	bHideTag[client] = sValue[0] == '\0' ? false : !StringToInt(sValue);
+		
+	GetClientCookie(client, hSelTagCookie, sValue, sizeof(sValue));
+	if (sValue[0] == '\0')
+	{
+		return;
+	}
+	int id = StringToInt(sValue);
+	if (!id)
+	{
+		LogError("Invalid id: %s", sValue);
+	}
+	iSelTagId[client] = id;
+	
 }
 
 public Action RankMe_OnPlayerLoaded(int client)
@@ -366,14 +460,6 @@ public Action RankMe_OnPlayerSaved(int client)
 	RankMe_GetRank(client, RankMe_LoadTags);
 }
 
-public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
-{
-	if (!cv_bParseRoundEnd.BoolValue)
-	return;
-	
-	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
-}
-
 public Action RankMe_LoadTags(int client, int rank, any data)
 {
 	Debug_Print("Callback load rankme-tags");
@@ -383,10 +469,19 @@ public Action RankMe_LoadTags(int client, int rank, any data)
 		Debug_Print("Callback valid rank %L - %i", client, rank);
 		char sRank[16];
 		IntToString(iRank[client], sRank, sizeof(sRank));
-		ReplaceString(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmRank}", sRank);
-		CS_SetClientClanTag(client, sTags[client].ScoreTag); //Instantly load the score-tag
+		ReplaceString(selectedTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmRank}", sRank);
+		CS_SetClientClanTag(client, selectedTags[client].ScoreTag); //Instantly load the score-tag
 	}
 }
+
+public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+{
+	if (!cv_bParseRoundEnd.BoolValue)
+	return;
+	
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
+}
+
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
@@ -412,7 +507,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	char sNewName[MAXLENGTH_NAME];
 	char sNewMessage[MAXLENGTH_MESSAGE];
 	// Rainbow name
-	if (StrEqual(sTags[author].NameColor, "{rainbow}")) 
+	if (StrEqual(selectedTags[author].NameColor, "{rainbow}")) 
 	{
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
@@ -433,9 +528,9 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 			if (IsCharMB(name[i]))
 			i += bytes-2;
 		}		
-		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", sTags[author].ChatTag, sTemp);
+		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", selectedTags[author].ChatTag, sTemp);
 	}
-	else if (StrEqual(sTags[author].NameColor, "{random}")) //Random name
+	else if (StrEqual(selectedTags[author].NameColor, "{random}")) //Random name
 	{
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
@@ -455,13 +550,13 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 			if (IsCharMB(name[i]))
 			i += bytes-2;
 		}		
-		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", sTags[author].ChatTag, sTemp);
+		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", selectedTags[author].ChatTag, sTemp);
 	}
 	else
 	{
-		Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", sTags[author].ChatTag, sTags[author].NameColor, name);
+		Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", selectedTags[author].ChatTag, selectedTags[author].NameColor, name);
 	}
-	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", sTags[author].ChatColor, message);
+	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", selectedTags[author].ChatColor, message);
 	
 	//Update the params
 	char sTime[16];
@@ -500,7 +595,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	}
 	
 	//Rainbow Chat
-	if (StrEqual(sTags[author].ChatColor, "{rainbow}", false))
+	if (StrEqual(selectedTags[author].ChatColor, "{rainbow}", false))
 	{
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rainbow}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
@@ -526,7 +621,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	}
 	
 	//Random Chat
-	if (StrEqual(sTags[author].ChatColor, "{random}", false))
+	if (StrEqual(selectedTags[author].ChatColor, "{random}", false))
 	{
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{random}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
@@ -595,8 +690,6 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	return Plugin_Changed;
 }
 
-KeyValues tagsKv;
-
 //Functions
 void LoadKv()
 {
@@ -618,17 +711,18 @@ void LoadKv()
 	strcopy(sTagConf, sizeof(sTagConf), sConfig);
 	delete tagsKv;
 }
+
 void LoadTags(int client)
 {
 	if (bHideTag[client])
-		return;
+	return;
 	
 	if (!IsValidClient(client, true, true))
-		return;
+	return;
 	
 	//Clear the tags when re-checking
 	ResetTags(client);
-	 
+	
 	if (tagsKv == null)
 	{
 		tagsKv = new KeyValues("HexTags");
@@ -636,12 +730,47 @@ void LoadTags(int client)
 		Debug_Print("KeyValue handle: %i", tagsKv);
 	}
 	tagsKv.Rewind();
+	if (userTags[client] == null)
+	{
+		userTags[client] = new ArrayList(sizeof(CustomTags));
+	}
 	ParseConfig(tagsKv, client);
+	
+	if (userTags[client].Length > 0)
+	{
+		if (iSelTagId[client] == 0)
+		{
+			userTags[client].GetArray(0, selectedTags[client], sizeof(CustomTags));
+			return;
+		}
+		tagsKv.Rewind();
+		if (!tagsKv.JumpToKeySymbol(iSelTagId[client]))
+		{
+			SetClientCookie(client, hSelTagCookie, "");
+			userTags[client].GetArray(0, selectedTags[client], sizeof(CustomTags));
+			return;
+		}
+		// Key found
+		int len = userTags[client].Length;
+		CustomTags tags;
+		
+		for (int i = 0; i < len; i++)
+		{
+			userTags[client].GetArray(i, tags, sizeof(CustomTags));
+			if (tags.SectionId == iSelTagId[client])
+			{
+				selectedTags[client] = tags;
+				// TODO: Check for not empty.
+				CS_SetClientClanTag(client, selectedTags[client].ScoreTag);
+				return;
+			}
+		}
+	}
 }
 
-// This functions returns a CustomTags enum struct.
 void ParseConfig(KeyValues kv, int client)
 {
+	userTags[client].Clear();
 	static char sSectionName[64];
 	do
 	{
@@ -654,17 +783,19 @@ void ParseConfig(KeyValues kv, int client)
 			{
 				Debug_Print("*******FOUND VALID SELECTOR -> %s.", sSectionName);
 				ParseConfig(kv, client);
-				return;
 			}
 		}
 		else
 		{
+			kv.GetSectionName(sSectionName, sizeof(sSectionName));
+			if (!CheckSelector(sSectionName, client)) 
+			{
+				continue;
+			}
 			Debug_Print("***********SETTINGS TAGS", sSectionName);
 			GetTags(client, kv);
-			return;
 		}
-	} while (kv.GotoNextKey());
-	
+	} while (kv.GotoNextKey());	
 	Debug_Print("-- Section end --");
 }
 
@@ -677,21 +808,25 @@ bool CheckSelector(const char[] selector, int client)
 	}
 	
 	/* CHECK STEAMID */
-	static char steamid[32];
-	if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
+	if(strlen(selector) > 11)
+	{
+		char steamid[32];
+		if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
 		return false;
-	
-	if (StrEqual(steamid, selector)) 
-	{
-		return true;
+		
+		if (StrEqual(steamid, selector)) 
+		{
+			return true;
+		}
+		
+			//Replace the STEAM_1 to STEAM_0 or viceversa
+		(steamid[6] == '1') ? (steamid[6] = '0') : (steamid[6] = '1');
+		if (StrEqual(steamid, selector)) 
+		{
+			return true;
+		}
 	}
 	
-	//Replace the STEAM_1 to STEAM_0 or viceversa
-	(steamid[6] == '1') ? (steamid[6] = '0') : (steamid[6] = '1');
-	if (StrEqual(steamid, selector)) 
-	{
-		return true;
-	}
 	
 	/* PERMISSIONS RELATED CHECKS */
 	AdminId admin = GetUserAdmin(client);
@@ -783,23 +918,30 @@ bool CheckSelector(const char[] selector, int client)
 	}
 	
 	/* CHECK GANG */
-	if (bGangs && StrEqual(selector, "Gang", false))
+	if (bGangs && StrEqual(selector, "Gang", false) && Gangs_HasGang(client))
 	{
-		if (Gangs_HasGang(client))
-		{
-			return true;
-		}
+		return true;
 	}
 	
 	/* CHECK RANKME */
 	if (bRankme && selector[0] == '!')
 	{
 		int iPoints = RankMe_GetPoints(client);
-		if (iPoints >= StringToInt(selector))
+		if (iPoints >= StringToInt(selector[1]))
 		{
 			return true;
 		}
 	}
+	
+	/* CHECK STEAM GROUP */
+	if (bSteamWorks && selector[0] == '$')
+	{
+		if (SteamWorks_GetUserGroupStatus(client, selector[1]))
+		{
+			return true;
+		}
+	}
+	
 	return false;
 }
 
@@ -809,15 +951,15 @@ public Action Timer_ForceTag(Handle timer)
 	if (!bCSGO)
 	return;
 	
-	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && sTags[i].ForceTag && sTags[i].ScoreTag[0] != '\0' && !bHideTag[i])
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && selectedTags[i].ForceTag && selectedTags[i].ScoreTag[0] != '\0' && !bHideTag[i])
 	{
 		char sTag[32];
 		CS_GetClientClanTag(i, sTag, sizeof(sTag));
-		if (StrEqual(sTag, sTags[i].ScoreTag))
+		if (StrEqual(sTag, selectedTags[i].ScoreTag))
 		continue;
 		
 		LogMessage("%L was changed by an external plugin, forcing him back to the HexTags' default one!", i, sTag);
-		CS_SetClientClanTag(i, sTags[i].ScoreTag);
+		CS_SetClientClanTag(i, selectedTags[i].ScoreTag);
 	}
 }
 
@@ -831,110 +973,124 @@ public void Frame_LoadTag(any client)
 void GetTags(int client, KeyValues kv)
 {
 	static char sSection[64];
+	static char sDef[8];
+	IntToString(iNextDefTag++, sDef, sizeof(sDef));
+	
 	kv.GetSectionName(sSection, sizeof(sSection));
 	Debug_Print("Section: %s", sSection);
+	int id;
+	if (kv.GetSectionSymbol(id))
+	{
+		LogError("Unable to get section symbol.");
+	}
 	
-	kv.GetString("ScoreTag", sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "");
-	kv.GetString("ChatTag", sTags[client].ChatTag, sizeof(CustomTags::ChatTag), "");
-	kv.GetString("ChatColor", sTags[client].ChatColor, sizeof(CustomTags::ChatColor), "");
-	kv.GetString("NameColor", sTags[client].NameColor, sizeof(CustomTags::NameColor), "{teamcolor}");
-	sTags[client].ForceTag = kv.GetNum("ForceTag", 1) == 1;
+	CustomTags tags;
+	
+	tags.SectionId = id;
+	kv.GetString("TagName", tags.TagName, sizeof(CustomTags::TagName), sDef);
+	kv.GetString("ScoreTag", tags.ScoreTag, sizeof(CustomTags::ScoreTag), "");
+	kv.GetString("ChatTag", tags.ChatTag, sizeof(CustomTags::ChatTag), "");
+	kv.GetString("ChatColor", tags.ChatColor, sizeof(CustomTags::ChatColor), "");
+	kv.GetString("NameColor", tags.NameColor, sizeof(CustomTags::NameColor), "{teamcolor}");
+	tags.ForceTag = kv.GetNum("ForceTag", 1) == 1;
+
 	
 	Call_StartForward(fTagsUpdated);
 	Call_PushCell(client);
 	Call_Finish();
 	
-	if (sTags[client].ScoreTag[0] != '\0' && bCSGO)
+	if (tags.ScoreTag[0] != '\0' && bCSGO)
 	{
 		//Update params
-		if (StrContains(sTags[client].ScoreTag, "{country}") != -1)
+		if (StrContains(tags.ScoreTag, "{country}") != -1)
 		{
 			static char sIP[32];
 			static char sCountry[3];
 			if (!GetClientIP(client, sIP, sizeof(sIP)))
-				LogError("Unable to get %L ip!", client);
+			LogError("Unable to get %L ip!", client);
 			GeoipCode2(sIP, sCountry);
-			ReplaceString(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{country}", sCountry);
+			ReplaceString(tags.ScoreTag, sizeof(CustomTags::ScoreTag), "{country}", sCountry);
 		}
-		if (bGangs && StrContains(sTags[client].ScoreTag, "{gang}") != -1)
+		if (bGangs && StrContains(tags.ScoreTag, "{gang}") != -1)
 		{
 			static char sGang[32];
 			Gangs_HasGang(client) ?  Gangs_GetGangName(client, sGang, sizeof(sGang)) : cv_sDefaultGang.GetString(sGang, sizeof(sGang));
-			ReplaceString(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{gang}", sGang);
+			ReplaceString(tags.ScoreTag, sizeof(CustomTags::ScoreTag), "{gang}", sGang);
 		}
-		if (bRankme && StrContains(sTags[client].ScoreTag, "{rmPoints}") != -1)
+		if (bRankme && StrContains(tags.ScoreTag, "{rmPoints}") != -1)
 		{
 			static char sPoints[16];
 			IntToString(RankMe_GetPoints(client), sPoints, sizeof(sPoints));
-			ReplaceString(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmPoints}", sPoints);
+			ReplaceString(tags.ScoreTag, sizeof(CustomTags::ScoreTag), "{rmPoints}", sPoints);
 		}
-		if (bRankme && StrContains(sTags[client].ScoreTag, "{rmRank}") != -1)
+		if (bRankme && StrContains(tags.ScoreTag, "{rmRank}") != -1)
 		{
 			Debug_Print("Contains rmRank");
 			RankMe_GetRank(client, RankMe_LoadTags);
 		}
 		
-		Debug_Print("Setted tag: %s", sTags[client].ScoreTag);
-		CS_SetClientClanTag(client, sTags[client].ScoreTag); //Instantly load the score-tag
+		Debug_Print("Setted tag: %s", tags.ScoreTag);
+		CS_SetClientClanTag(client, tags.ScoreTag); //Instantly load the score-tag
 	}
-	if (StrContains(sTags[client].ChatTag, "{rainbow}") == 0) 
+	if (StrContains(tags.ChatTag, "{rainbow}") == 0) 
 	{
 		Debug_Print("Found {rainbow} in ChatTag");
-		ReplaceString(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), "{rainbow}", "");
+		ReplaceString(tags.ChatTag, sizeof(CustomTags::ChatTag), "{rainbow}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
 		int color;
-		int len = strlen(sTags[client].ChatTag);
+		int len = strlen(tags.ChatTag);
 		for(int i = 0; i < len; i++)
 		{
-			if (IsCharSpace(sTags[client].ChatTag[i]))
+			if (IsCharSpace(tags.ChatTag[i]))
 			{
-				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sTags[client].ChatTag[i]);
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, tags.ChatTag[i]);
 				continue;
 			}
 			
-			int bytes = GetCharBytes(sTags[client].ChatTag[i])+1;
+			int bytes = GetCharBytes(tags.ChatTag[i])+1;
 			char[] c = new char[bytes];
-			strcopy(c, bytes, sTags[client].ChatTag[i]);
+			strcopy(c, bytes, tags.ChatTag[i]);
 			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetColor(++color), c);
-			if (IsCharMB(sTags[client].ChatTag[i]))
+			if (IsCharMB(tags.ChatTag[i]))
 			i += bytes-2;
 		}
-		strcopy(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), sTemp);
-		Debug_Print("Replaced ChatTag with %s", sTags[client].ChatTag);
+		strcopy(tags.ChatTag, sizeof(CustomTags::ChatTag), sTemp);
+		Debug_Print("Replaced ChatTag with %s", tags.ChatTag);
 	}
-	if (StrContains(sTags[client].ChatTag, "{random}") == 0) 
+	if (StrContains(tags.ChatTag, "{random}") == 0) 
 	{
-		ReplaceString(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), "{random}", "");
+		ReplaceString(tags.ChatTag, sizeof(CustomTags::ChatTag), "{random}", "");
 		char sTemp[MAXLENGTH_MESSAGE];
-		int len = strlen(sTags[client].ChatTag);
+		int len = strlen(tags.ChatTag);
 		for(int i = 0; i < len; i++)
 		{
-			if (IsCharSpace(sTags[client].ChatTag[i]))
+			if (IsCharSpace(tags.ChatTag[i]))
 			{
-				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, sTags[client].ChatTag[i]);
+				Format(sTemp, sizeof(sTemp), "%s%c", sTemp, tags.ChatTag[i]);
 				continue;
 			}
 			
-			int bytes = GetCharBytes(sTags[client].ChatTag[i])+1;
+			int bytes = GetCharBytes(tags.ChatTag[i])+1;
 			char[] c = new char[bytes];
-			strcopy(c, bytes, sTags[client].ChatTag[i]);
+			strcopy(c, bytes, tags.ChatTag[i]);
 			Format(sTemp, sizeof(sTemp), "%s%c%s", sTemp, GetRandomColor(), c);
-			if (IsCharMB(sTags[client].ChatTag[i]))
+			if (IsCharMB(tags.ChatTag[i]))
 			i += bytes-2;
 		}
-		strcopy(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), sTemp);
+		strcopy(tags.ChatTag, sizeof(CustomTags::ChatTag), sTemp);
 	}
 	Debug_Print("Succesfully setted tags");
+	userTags[client].PushArray(tags, sizeof(tags));
 }
 
 void ResetTags(int client)
 {
-	strcopy(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "");
-	strcopy(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), "");
-	strcopy(sTags[client].ChatColor, sizeof(CustomTags::ChatColor), "");
-	strcopy(sTags[client].NameColor, sizeof(CustomTags::NameColor), "");
-	sTags[client].ForceTag = true;
+	strcopy(selectedTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "");
+	strcopy(selectedTags[client].ChatTag, sizeof(CustomTags::ChatTag), "");
+	strcopy(selectedTags[client].ChatColor, sizeof(CustomTags::ChatColor), "");
+	strcopy(selectedTags[client].NameColor, sizeof(CustomTags::NameColor), "");
+	selectedTags[client].ForceTag = true;
 }
 
 int GetRandomColor()
@@ -998,19 +1154,19 @@ public int Native_GetClientTag(Handle plugin, int numParams)
 	{
 		case (ScoreTag): 
 		{
-			SetNativeString(3, sTags[client].ScoreTag, GetNativeCell(4));
+			SetNativeString(3, selectedTags[client].ScoreTag, GetNativeCell(4));
 		}
 		case (ChatTag): 
 		{
-			SetNativeString(3, sTags[client].ChatTag, GetNativeCell(4));
+			SetNativeString(3, selectedTags[client].ChatTag, GetNativeCell(4));
 		}
 		case (ChatColor): 
 		{
-			SetNativeString(3, sTags[client].ChatColor, GetNativeCell(4));
+			SetNativeString(3, selectedTags[client].ChatColor, GetNativeCell(4));
 		}
 		case (NameColor): 
 		{
-			SetNativeString(3, sTags[client].NameColor, GetNativeCell(4));
+			SetNativeString(3, selectedTags[client].NameColor, GetNativeCell(4));
 		}
 	}
 	return 0;
@@ -1039,26 +1195,26 @@ public int Native_SetClientTag(Handle plugin, int numParams)
 	{
 		case (ScoreTag): 
 		{
-			strcopy(sTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), sTag);
+			strcopy(selectedTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), sTag);
 		}
 		case (ChatTag): 
 		{
-			strcopy(sTags[client].ChatTag, sizeof(CustomTags::ChatTag), sTag);
+			strcopy(selectedTags[client].ChatTag, sizeof(CustomTags::ChatTag), sTag);
 		}
 		case (ChatColor): 
 		{
-			strcopy(sTags[client].ChatColor, sizeof(CustomTags::ChatColor), sTag);
+			strcopy(selectedTags[client].ChatColor, sizeof(CustomTags::ChatColor), sTag);
 		}
 		case (NameColor): 
 		{
-			strcopy(sTags[client].NameColor, sizeof(CustomTags::NameColor), sTag);
+			strcopy(selectedTags[client].NameColor, sizeof(CustomTags::NameColor), sTag);
 		}
 	}
 	
 	
 	Debug_Print("Called Native_SetClientTag(%i, %i, %s)", client, tag, sTag);
 	
-//	strcopy(sTags[client][Tag], sizeof(sTags[][]), sTag);
+//	strcopy(selectedTags[client][Tag], sizeof(sTags[][]), sTag);
 	return 0;
 }
 

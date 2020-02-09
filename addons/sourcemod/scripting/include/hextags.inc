@@ -55,11 +55,13 @@ public void __pl_hextags_SetNTVOptional()
 
 enum struct CustomTags 
 {
+	char TagName[32];
 	char ScoreTag[32];
 	char ChatTag[MAXLENGTH_NAME];
 	char ChatColor[32];
 	char NameColor[32];
 	bool ForceTag;
+	int SectionId;
 }
 
 enum eTags
