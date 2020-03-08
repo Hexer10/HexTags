@@ -50,6 +50,8 @@ public void __pl_hextags_SetNTVOptional()
 	MarkNativeAsOptional("HexTags_GetClientTag");
 	MarkNativeAsOptional("HexTags_SetClientTag");
 	MarkNativeAsOptional("HexTags_ResetClientTag");
+	MarkNativeAsOptional("HexTags_AddCustomSelector");
+	MarkNativeAsOptional("HexTags_RemoveCustomSelector");
 }
 #endif
 
@@ -71,6 +73,8 @@ enum eTags
 	ChatColor,
 	NameColor
 }
+
+typedef SelectorCallback = function bool(int client, const char[] selector);
 
 /** 
  * Returns an HexTags client tag.
@@ -145,3 +149,19 @@ forward Action HexTags_OnMessageProcess(int client, char name[MAXLENGTH_NAME], c
  * @noreturn
  */
 forward void HexTags_OnMessageProcessed(int client, const char[] name, const char[] message);
+
+
+/**
+ * Adds a Custom Selector callback.
+ * The callback is fired every time a selector is parsed and does not match any other selector.
+ *
+ * @return	True on success, false otherwise.
+ */ 
+native bool HexTags_AddCustomSelector(SelectorCallback callback);
+
+/**
+ * Removes a Custom Selector hook.
+ *
+ * @return	True on success, false otherwise.
+ */
+native bool HexTags_RemoveCustomSelector(SelectorCallback callback);
