@@ -126,9 +126,8 @@ public void OnPluginStart()
 {
 	//ConVars
 	CreateConVar("sm_hextags_version", PLUGIN_VERSION, "HexTags plugin version", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
-	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs");
+	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs.");
 	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
-	cv_bDisableRankme = CreateConVar("sm_hextags_disable_rankme", "0", "Set to 1 if you're having issues with rankme releted APIs.");
 	cv_bEnableTagsList = CreateConVar("sm_hextags_enable_tagslist", "0", "Set to 1 to enable the sm_tagslist command.");
 	
 	AutoExecConfig();
@@ -159,7 +158,7 @@ public void OnAllPluginsLoaded()
 	LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
 	
 	bMostActive = LibraryExists("mostactive");
-	bRankme = LibraryExists("rankme") && !cv_bDisableRankme.BoolValue;
+	bRankme = LibraryExists("rankme");
 	bWarden = LibraryExists("warden");
 	bMyJBWarden = LibraryExists("myjbwarden");
 	bGangs = LibraryExists("hl_gangs");
@@ -828,11 +827,11 @@ bool CheckSelector(const char[] selector, int client)
 	}
 	
 	/* CHECK STEAMID */
-	if(strlen(selector) > 11)
+	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true))
 	{
 		char steamid[32];
 		if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
-		return false;
+			return false;
 		
 		if (StrEqual(steamid, selector)) 
 		{
@@ -867,7 +866,7 @@ bool CheckSelector(const char[] selector, int client)
 			}
 		}
 		
-		/* CHECK ADMIN FLAGS (2)*/
+		/* CHECK ADMIN FLAGS (1)*/
 		if (strlen(selector) == 1)
 		{
 			AdminFlag flag;
@@ -880,6 +879,7 @@ bool CheckSelector(const char[] selector, int client)
 			}
 		}
 		
+		/* CHECK ADMIN FLAGS (2)*/
 		if (selector[0] == '&')
 		{
 			for (int i = 1; i < strlen(selector); i++)
