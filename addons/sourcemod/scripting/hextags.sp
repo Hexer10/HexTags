@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#define DEBUG 1
+//#define DEBUG 0
 
 #include <sourcemod>
 #include <sdktools>
@@ -47,6 +47,9 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+
+PrivateForward pfCustomSelector;
+
 Handle fTagsUpdated;
 Handle fMessageProcess;
 Handle fMessageProcessed;
@@ -57,6 +60,7 @@ Handle hSelTagCookie;
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
 ConVar cv_bDisableRankme;
+ConVar cv_bEnableTagsList;
 
 bool bCSGO;
 bool bLate;
@@ -98,12 +102,16 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	CreateNative("HexTags_GetClientTag", Native_GetClientTag);
 	CreateNative("HexTags_SetClientTag", Native_SetClientTag);
 	CreateNative("HexTags_ResetClientTag", Native_ResetClientTags);
+	CreateNative("HexTags_AddCustomSelector", Native_AddCustomSelector);
+	CreateNative("HexTags_RemoveCustomSelector", Native_RemoveCustomSelector);
 	
-	fTagsUpdated = CreateGlobalForward("HexTags_OnTagsUpdated", ET_Ignore, Param_Cell);
+	fTagsUpdated = new GlobalForward("HexTags_OnTagsUpdated", ET_Ignore, Param_Cell);
 	
-	fMessageProcess = CreateGlobalForward("HexTags_OnMessageProcess", ET_Single, Param_Cell, Param_String, Param_String);
-	fMessageProcessed = CreateGlobalForward("HexTags_OnMessageProcessed", ET_Ignore, Param_Cell, Param_String, Param_String);
-	fMessagePreProcess = CreateGlobalForward("HexTags_OnMessagePreProcess", ET_Single, Param_Cell, Param_String, Param_String);
+	fMessageProcess = new GlobalForward("HexTags_OnMessageProcess", ET_Single, Param_Cell, Param_String, Param_String);
+	fMessageProcessed = new GlobalForward("HexTags_OnMessageProcessed", ET_Ignore, Param_Cell, Param_String, Param_String);
+	fMessagePreProcess = new GlobalForward("HexTags_OnMessagePreProcess", ET_Single, Param_Cell, Param_String, Param_String);
+	
+	pfCustomSelector = new PrivateForward(ET_Single, Param_Cell, Param_String);
 	
 	EngineVersion engine = GetEngineVersion();
 	bCSGO = (engine == Engine_CSGO || engine == Engine_CSS);
@@ -121,6 +129,7 @@ public void OnPluginStart()
 	cv_sDefaultGang = CreateConVar("sm_hextags_nogang", "", "Text to use if user has no tag - needs hl_gangs");
 	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
 	cv_bDisableRankme = CreateConVar("sm_hextags_disable_rankme", "0", "Set to 1 if you're having issues with rankme releted APIs.");
+	cv_bEnableTagsList = CreateConVar("sm_hextags_enable_tagslist", "0", "Set to 1 to enable the sm_tagslist command.");
 	
 	AutoExecConfig();
 	
@@ -346,6 +355,12 @@ public Action Cmd_TagsList(int client, int args)
 		return Plugin_Handled;
 	}
 	
+	if (!cv_bEnableTagsList.BoolValue) 
+	{
+		ReplyToCommand(client, "[SM] This feature is not enabled.");
+		return Plugin_Handled;
+	}
+	
 	if (userTags[client].Length == 0)
 	{
 		ReplyToCommand(client, "[SM] No tags available.");
@@ -469,6 +484,10 @@ public Action RankMe_LoadTags(int client, int rank, any data)
 		Debug_Print("Callback valid rank %L - %i", client, rank);
 		char sRank[16];
 		IntToString(iRank[client], sRank, sizeof(sRank));
+		
+		if (selectedTags[client].ScoreTag[0] == '\0')
+			return;
+			
 		ReplaceString(selectedTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmRank}", sRank);
 		CS_SetClientClanTag(client, selectedTags[client].ScoreTag); //Instantly load the score-tag
 	}
@@ -559,14 +578,14 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", selectedTags[author].ChatColor, message);
 	
 	//Update the params
-	char sTime[16];
+	static char sTime[16];
 	FormatTime(sTime, sizeof(sTime), "%H:%M");  
 	ReplaceString(sNewName, sizeof(sNewName), "{time}", sTime);
 	ReplaceString(sNewMessage, sizeof(sNewMessage), "{time}", sTime);
 	
 	
-	char sIP[32];
-	char sCountry[3];
+	static char sIP[32];
+	static char sCountry[3];
 	GetClientIP(author, sIP, sizeof(sIP));
 	GeoipCode2(sIP, sCountry);
 	ReplaceString(sNewName, sizeof(sNewName), "{country}", sCountry);
@@ -574,7 +593,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	
 	if (bGangs)
 	{
-		char sGang[32];
+		static char sGang[32];
 		Gangs_HasGang(author) ?  Gangs_GetGangName(author, sGang, sizeof(sGang)) : cv_sDefaultGang.GetString(sGang, sizeof(sGang));
 		
 		ReplaceString(sNewName, sizeof(sNewName), "{gang}", sGang);
@@ -583,12 +602,12 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	
 	if (bRankme)
 	{
-		char sPoints[16];
+		static char sPoints[16];
 		IntToString(RankMe_GetPoints(author), sPoints, sizeof(sPoints));
 		ReplaceString(sNewName, sizeof(sNewName), "{rmPoints}", sPoints);
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rmPoints}", sPoints);
 		
-		char sRank[16];
+		static char sRank[16];
 		IntToString(iRank[author], sRank, sizeof(sRank));
 		ReplaceString(sNewName, sizeof(sNewName), "{rmRank}", sRank);
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rmRank}", sRank);
@@ -645,8 +664,8 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 		Format(sNewMessage, MAXLENGTH_MESSAGE, "%s", sTemp); 
 	}
 	
-	char sPassedName[MAXLENGTH_NAME];
-	char sPassedMessage[MAXLENGTH_NAME];
+	static char sPassedName[MAXLENGTH_NAME];
+	static char sPassedMessage[MAXLENGTH_NAME];
 	sPassedName = sNewName;
 	sPassedMessage = sNewMessage;
 	
@@ -658,7 +677,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	Call_PushStringEx(sPassedName, sizeof(sPassedName), SM_PARAM_STRING_UTF8|SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
 	Call_PushStringEx(sPassedMessage, sizeof(sPassedMessage), SM_PARAM_STRING_UTF8|SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
 	Call_Finish(result);
-	
+
 	if (result == Plugin_Continue)
 	{
     	//Update the name & message
@@ -679,7 +698,6 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	processcolors = true;
 	removecolors = false;
 	
-	
 	//Call the (post)forward
 	Call_StartForward(fMessageProcessed);
 	Call_PushCell(author);
@@ -697,15 +715,15 @@ void LoadKv()
 	BuildPath(Path_SM, sConfig, sizeof(sConfig), "configs/hextags.cfg"); //Get cfg file
 	
 	if (OpenFile(sConfig, "rt") == null)
-	SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
+		SetFailState("Couldn't find: \"%s\"", sConfig); //Check if cfg exist
 	
 	KeyValues kv = new KeyValues("HexTags"); //Create the kv
 	
 	if (!kv.ImportFromFile(sConfig))
-	SetFailState("Couldn't import: \"%s\"", sConfig); //Check if file was imported properly
+		SetFailState("Couldn't import: \"%s\"", sConfig); //Check if file was imported properly
 	
 	if (!kv.GotoFirstSubKey())
-	LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entries
+		LogMessage("No entries found in: \"%s\"", sConfig); //Notify that there aren't any entries
 	
 	delete kv;
 	strcopy(sTagConf, sizeof(sTagConf), sConfig);
@@ -715,10 +733,10 @@ void LoadKv()
 void LoadTags(int client)
 {
 	if (bHideTag[client])
-	return;
+		return;
 	
 	if (!IsValidClient(client, true, true))
-	return;
+		return;
 	
 	//Clear the tags when re-checking
 	ResetTags(client);
@@ -738,7 +756,7 @@ void LoadTags(int client)
 	
 	if (userTags[client].Length > 0)
 	{
-		if (iSelTagId[client] == 0)
+		if (iSelTagId[client] == 0 || !cv_bEnableTagsList.BoolValue)
 		{
 			userTags[client].GetArray(0, selectedTags[client], sizeof(CustomTags));
 			return;
@@ -760,7 +778,9 @@ void LoadTags(int client)
 			if (tags.SectionId == iSelTagId[client])
 			{
 				selectedTags[client] = tags;
-				// TODO: Check for not empty.
+				if (selectedTags[client].ScoreTag[0] == '\0')
+					return;
+					
 				CS_SetClientClanTag(client, selectedTags[client].ScoreTag);
 				return;
 			}
@@ -942,7 +962,15 @@ bool CheckSelector(const char[] selector, int client)
 		}
 	}
 	
-	return false;
+
+	bool res = false;
+	
+	Call_StartForward(pfCustomSelector);
+	Call_PushCell(client);
+	Call_PushString(selector);
+	Call_Finish(res);
+	
+	return res;
 }
 
 //Timers
@@ -979,7 +1007,7 @@ void GetTags(int client, KeyValues kv)
 	kv.GetSectionName(sSection, sizeof(sSection));
 	Debug_Print("Section: %s", sSection);
 	int id;
-	if (kv.GetSectionSymbol(id))
+	if (!kv.GetSectionSymbol(id))
 	{
 		LogError("Unable to get section symbol.");
 	}
@@ -1114,11 +1142,12 @@ int GetRandomColor()
 		case 15: return '\x0E';
 		case 16: return '\x0F';
 	}
-	return '\01';
+	return '\x01';
 }
 
 int GetColor(int color)
 {
+	// TODO: Use modulo operator.
 	while(color > 7)
 	color -= 7;
 	
@@ -1233,4 +1262,14 @@ public int Native_ResetClientTags(Handle plugin, int numParams)
 	
 	LoadTags(client);
 	return 0;
+}
+
+public int Native_AddCustomSelector(Handle plugin, int numParams)
+{
+	return pfCustomSelector.AddFunction(plugin, GetNativeFunction(1));
+}
+
+public int Native_RemoveCustomSelector(Handle plugin, int numParams)
+{
+	return pfCustomSelector.RemoveFunction(plugin, GetNativeFunction(1));
 }
