@@ -1,6 +1,3 @@
-/*
-**
-*/
 #if defined _hexstocks_included
 #endinput
 #endif
@@ -10,6 +7,10 @@
 
 #include <sourcemod>
 #include <sdktools>
+
+#undef REQUIRE_EXTENSIONS
+#include <cstrike>
+#define REQUIRE_EXTENSIONS
 
 /*
 INCLUDE MERGE OF MYSTOCKS(shanpu)teamgames-stocks/menu-stocks(KissLick) & some other!
@@ -62,7 +63,7 @@ stock bool CheckAdminFlag(int client, const char[] flags)
 	
 	for (int i = 0; i < iCount; i++)
 	{
-		if ((GetUserFlagBits(client) & ReadFlagString(sflagNeed[i]) == ReadFlagString(sflagNeed[i])) || (GetUserFlagBits(client) & ADMFLAG_ROOT))
+		if ((GetUserFlagBits(client) & ReadFlagString(sflagNeed[i])) || (GetUserFlagBits(client) & ADMFLAG_ROOT))
 		{
 			bEntitled = true;
 			break;
@@ -154,9 +155,9 @@ stock int GetAliveTeamCount(int team = -1, bool alive = true)
 * Get random player of a team
 *
 *
-* @param team				Team, -1 for any
+* @param team				Team, -1 for any.
 * @param True				True to include only alive players.
-* @noreturn
+* @return					A random client index.
 */
 stock int GetRandomPlayer(int team = -1, bool OnlyAlive = true)
 {
@@ -171,6 +172,85 @@ stock int GetRandomPlayer(int team = -1, bool OnlyAlive = true)
 	}
 	return (clientCount == 0) ? -1 : clients[GetRandomInt(0, clientCount - 1)];
 	
+}
+
+/**
+* Set a client player model and arms.
+* This functions precaches the models.
+*
+* @param model				Model path.
+* @param arms				Arms path.
+* @noreturn
+*/
+stock void SetPlayerModelAndArms(int client, const char model[PLATFORM_MAX_PATH], const char arms[PLATFORM_MAX_PATH])
+{
+	if (!IsModelPrecached(model))
+		PrecacheModel(model);
+		
+	if (!IsModelPrecached(arms))
+		PrecacheModel(arms)
+		
+	SetEntPropString(client, Prop_Send, "m_szArmsModel", arms);
+	
+	DataPack data = new DataPack();
+	data.WriteCell(GetClientUserId(client));
+	data.WriteString(model);
+	RequestFrame(Frame_SetModel, data);
+}
+
+#define DEFAULT_MODEL "models/player/tm_anarchist.mdl"
+
+/**
+* Set a client player arms.
+* This functions precaches the models.
+*
+* @param model				Model path.
+* @param arms				Arms path.
+* @noreturn
+*/
+stock void SetPlayerArms(int client, const char arms[PLATFORM_MAX_PATH])
+{
+	if (!IsModelPrecached(DEFAULT_MODEL))
+		PrecacheModel(DEFAULT_MODEL);
+		
+	if (!IsModelPrecached(arms))
+		PrecacheModel(arms);
+		
+	char sOldModel[PLATFORM_MAX_PATH];
+	GetEntityModel(client, sOldModel);
+	
+	SetEntityModel(client, DEFAULT_MODEL);
+	SetEntPropString(client, Prop_Send, "m_szArmsModel", arms);
+	
+	DataPack data = new DataPack();
+	data.WriteCell(GetClientUserId(client));
+	data.WriteString(sOldModel);
+	RequestFrame(Frame_SetModel, data);
+}
+
+static stock void Frame_SetModel(DataPack data)
+{
+	data.Reset();
+	char sModel[PLATFORM_MAX_PATH];
+	int client = GetClientOfUserId(data.ReadCell());
+	if (!client)
+	{
+		delete data;
+		return;
+	}
+	data.ReadString(sModel, sizeof sModel);
+	SetEntityModel(client, sModel);
+	delete data;
+}
+
+stock int GetFov(int client)
+{
+	return GetEntProp(client, Prop_Send, "m_iFOV");
+}
+
+stock void SetFov(int client, int fov)
+{
+	SetEntProp(client, Prop_Send, "m_iFOV", fov);
 }
 /*********************************** NUMBERS *****************************/
 
@@ -198,7 +278,16 @@ stock bool IsOdd(int num)
 	return (num & 1) == 1;
 }
 
-
+/**
+* Get the client aim position.
+*
+*
+* @param client				Client Index
+* @param pos				Position vector
+* @param mask				Custom TraceRay mask
+*
+* @return					True if the trace did it, false otherwise.
+*/
 stock bool GetClientAimPosition(int client, float pos[3], int mask = MASK_SOLID)
 {
 	float vPos[3];
@@ -215,9 +304,87 @@ stock bool GetClientAimPosition(int client, float pos[3], int mask = MASK_SOLID)
 	return true;
 }
 
+/**
+* Get the client aim target.
+*
+*
+* @param client				Client Index
+* @param mask				Custom TraceRay mask
+*
+* @return					The entity index or -1 if none is found.
+*/
+stock int GetClientAimTarget2(int client, int mask = MASK_SOLID)
+{
+	float vPos[3];
+	float vAng[3];
+	
+	GetClientEyePosition(client, vPos);
+	GetClientEyeAngles(client, vAng);
+	
+	TR_TraceRayFilter(vPos, vAng, mask, RayType_Infinite, Filter_NoSelf, client);
+	
+	return TR_GetEntityIndex();
+}
+
 public bool Filter_NoSelf(int entity, int contentsMask, any data)
 {
 	return entity != data;
+}
+ 
+stock bool IsClientInView(int viewer, int target, float fMaxDistance=0.0, float fThreshold=0.73)
+{
+	// Retrieve view and target eyes position
+	float fViewPos[3];  
+	float fViewAng[3];  
+	float fViewDir[3];
+
+	float fTargetPos[3];
+	float fTargetDir[3];
+	float fDistance[3];
+
+	GetClientEyePosition(viewer, fViewPos);
+	GetClientEyeAngles(viewer, fViewAng);
+	GetClientEyePosition(target, fTargetPos);
+
+	// Calculate view direction
+	fViewAng[0] = fViewAng[2] = 0.0;
+	GetAngleVectors(fViewAng, fViewDir, NULL_VECTOR, NULL_VECTOR);
+
+	// Calculate distance to viewer to see if it can be seen.
+	fDistance[0] = fTargetPos[0]-fViewPos[0];
+	fDistance[1] = fTargetPos[1]-fViewPos[1];
+	fDistance[2] = 0.0;
+	if (fMaxDistance != 0.0)
+	{
+		if (((fDistance[0]*fDistance[0])+(fDistance[1]*fDistance[1])) >= (fMaxDistance*fMaxDistance))
+			return false;
+	}
+
+	// Check dot product. If it's negative, that means the viewer is facing
+	// backwards to the target.
+	NormalizeVector(fDistance, fTargetDir);
+	if (GetVectorDotProduct(fViewDir, fTargetDir) < fThreshold)
+		return false;
+
+	// Now check if there are no obstacles in between through raycasting
+	Handle trace = TR_TraceRayFilterEx(fViewPos, fTargetPos, MASK_PLAYERSOLID_BRUSHONLY, RayType_EndPoint, ClientViewsFilter);
+	if (TR_DidHit(trace))
+	{
+		delete trace;
+		return false;
+	}
+	delete trace;
+
+	// Done, it's visible
+	return true;
+}
+
+stock bool ClientViewsFilter(int entity, int mask, any junk)
+{
+	if (entity >= 1 && entity <= MaxClients) 
+		return false;
+
+	return true;
 }
 /********************************** WEAPONS ********************************/
 
@@ -232,20 +399,12 @@ public bool Filter_NoSelf(int entity, int contentsMask, any data)
 stock void StripAllPlayerWeapons(int client)
 {
 	int weapon;
-	for (int i = 0; i <= 4; i++)
-	{
-		if ((weapon = GetPlayerWeaponSlot(client, i)) != -1)
-		{
-			RemovePlayerItem(client, weapon);
-			AcceptEntityInput(weapon, "Kill");
-		}
-		
-	}
+	int index;
 	
-	if ((weapon = GetPlayerWeaponSlot(client, CS_SLOT_KNIFE)) != -1) // strip knife slot 2 times for taser
+	while((weapon = GetNextWeapon(client, index)) != -1)
 	{
-		RemovePlayerItem(client, weapon);
-		AcceptEntityInput(weapon, "Kill");
+		CS_DropWeapon(client, weapon, false, true);
+		RemoveEdict(weapon);
 	}
 }
 
@@ -258,7 +417,7 @@ stock void StripAllPlayerWeapons(int client)
 * @param ammo				Total ammo ammount
 * @return					Entity Index
 */
-stock int GivePlayerItemAmmo(int client, const char[] weapon, int ammo = -1, int clip = -1)
+stock int GivePlayerItemAmmo(int client, const char[] weapon, int clip = -1, int ammo = -1)
 {
 	int weaponEnt = GivePlayerItem(client, weapon);
 	
@@ -283,7 +442,8 @@ stock void SetPlayerWeaponAmmo(int client, int weaponEnt, int clip = -1, int amm
 		
 	if (clip != -1)
 		SetEntProp(weaponEnt, Prop_Data, "m_iClip1", clip);
-			
+			 
+	//TODO FIXED GIVEN AMMOS
 	if (ammo != -1)
 	{
 		SetEntProp(weaponEnt, Prop_Send, "m_iPrimaryReserveAmmoCount", ammo);
@@ -324,6 +484,60 @@ stock void PrecacheModelAnyDownload(char[] sModel)
 	PrecacheModel(sModel, true);
 }
 
+//Adaption for smlib
+stock int GetNextWeapon(int client, int &weaponIndex) 
+{ 
+    static int weaponsOffset = -1; 
+    if (weaponsOffset == -1) 
+        weaponsOffset = FindDataMapInfo(client, "m_hMyWeapons"); 
+     
+    int offset = weaponsOffset + (weaponIndex * 4); 
+     
+    int weapon; 
+    while (weaponIndex < 48)  
+    { 
+        weaponIndex++; 
+         
+        weapon = GetEntDataEnt2(client, offset); 
+         
+        if (IsValidEdict(weapon))  
+            return weapon; 
+         
+        offset += 4; 
+    } 
+     
+    return -1; 
+} 
+
+stock bool HasWeapon(int client, const char[] classname) 
+{ 
+    int index; 
+    int weapon; 
+    char sName[64]; 
+     
+    while((weapon = GetNextWeapon(client, index)) != -1) 
+    { 
+        GetEdictClassname(weapon, sName, sizeof(sName)); 
+        if (StrEqual(sName, classname)) 
+            return true; 
+    } 
+    return false; 
+}
+
+stock int GetWeaponByClassname(int client, const char[] classname)
+{
+    int index; 
+    int weapon; 
+    char sName[64]; 
+     
+    while((weapon = GetNextWeapon(client, index)) != -1) 
+    { 
+        GetEdictClassname(weapon, sName, sizeof(sName)); 
+        if (StrEqual(sName, classname)) 
+            return weapon; 
+    } 
+    return -1; 
+}
 /****************************** COMMAND ARGS **************************/
 
 
@@ -333,12 +547,14 @@ stock void PrecacheModelAnyDownload(char[] sModel)
 * @param argnum			Arg number
 * @return					Int Value of Arg
 */
+#if SOURCEMOD_V_MINOR < 11
 stock int GetCmdArgInt(int argnum)
 {
 	char value[256];
 	GetCmdArg(argnum, value, sizeof(value));
 	return StringToInt(value);
 }
+#endif
 
 /**
 * Retrives a command argument given its index as float, from the console or server command
@@ -443,7 +659,7 @@ stock void SetCvarString(char[] cvarName, char[] value)
 
 
 /**
-* Checks if a entity or edict is valid
+* Checks if a entity or edict is valid and not a client
 *
 *
 * @param cvarName				Name of cvar
@@ -452,7 +668,7 @@ stock void SetCvarString(char[] cvarName, char[] value)
 */
 stock bool IsValidEnt(int ent)
 {
-	if (ent == INVALID_ENT_REFERENCE && ent <= MaxClients && !(IsValidEntity(ent) || IsValidEdict(ent)))
+	if (ent == INVALID_ENT_REFERENCE || ent <= MaxClients || !IsValidEntity(ent) || !IsValidEdict(ent))
 	{
 		return false;
 	}
@@ -480,6 +696,18 @@ stock void SetEntitySpeed(int entity, float speed = 1.0)
 stock float GetEntitySpeed(int entity)
 {
 	return GetEntPropFloat(entity, Prop_Data, "m_flLaggedMovementValue");
+}
+
+/**
+* Gets an entity's name
+*
+* @param entity			Entity Index
+*
+* @noreturn				
+*/
+stock void GetEntityName(int entity, char[] name, int maxlen)
+{	
+	GetEntPropString(entity, Prop_Data, "m_iName", name, maxlen);
 }
 
 /**
@@ -586,29 +814,7 @@ stock void SetLogFile(char LogFile[PLATFORM_MAX_PATH], char[] FileName, char[] F
 
 
 /**
- * Opens and creates, returning a File handle on success. File handles
- * should be closed with delete or CloseHandle().
- *
- * The open mode may be one of the following strings:
- *   "r": Open an existing file for reading.
- *   "w": Create a file for writing, or truncate (delete the contents of) an
- *        existing file and then open it for writing.
- *   "a": Create a file for writing, or open an existing file such that writes
- *        will be appended to the end.
- *   "r+": Open an existing file for both reading and writing.
- *   "w+": Create a file for reading and writing, or truncate an existing file
- *         and then open it for reading and writing.
- *   "a+": Create a file for both reading and writing, or open an existing file
- *         such that writes will be appended to the end.
- *
- * The open mode may also contain an additional character after "r", "w", or "a",
- * but before any "+" sign. This character may be "b" (indicating binary mode) or
- * "t" (indicating text mode). By default, "text" mode is implied. On Linux and
- * Mac, this has no distinction from binary mode. On Windows, it causes the '\n'
- * character (0xA) to be written as "\r\n" (0xD, 0xA).
- *
- * Example: "rb" opens a binary file for writing; "at" opens a text file for
- * appending.
+ * Same as OpenFile but if the file does not exist is before created.
  *
  * @param file			File to open.
  * @param mode			Open mode.
@@ -650,12 +856,13 @@ stock bool CreateDirectoryEx(const char[] path)
 * @param timer		 Timer Handle to kill
 * @noreturn
 */
+#pragma deprecated Use `delete timer` instead
 stock void StopTimer(Handle &timer)
 {
-	if (timer != INVALID_HANDLE)
+	if (timer != null)
 	{
 		timer.Close();
-		timer = INVALID_HANDLE;
+		timer = null;
 	}
 }
 
@@ -671,7 +878,7 @@ stock bool IsWarmup()
 
 
 // Easy precache & prepare download for sounds
-stock void PrecacheSoundAnyDownload(char[] sSound)
+stock void PrecacheSoundAnyDownload(const char[] sSound)
 {
 	char sBuffer[256];
 	PrecacheSound(sSound);
@@ -679,34 +886,39 @@ stock void PrecacheSoundAnyDownload(char[] sSound)
 	AddFileToDownloadsTable(sBuffer);
 } 
 
-
-
-/********************************** MISC *********************************/
-
-
 #if defined DEBUG
-bool bSendServer = true;
+bool bSendServer = false;
 bool bSendConsole = true;
 bool bSendChat = true;
+bool bLog = true;
+
+char sLogFile[PLATFORM_MAX_PATH] = "addons/sourcemod/logs/hexlogs.txt";
+char sPrefix[32] = "[DEBUG]";
 #endif
 
-stock bool Debug_Setup(bool server = true, bool console = true, bool chat = true)
+stock bool Debug_Setup(bool server = false, bool console = true, bool chat = true, bool log = true)
 {
 	#if defined DEBUG
 	bSendServer = server;
 	bSendConsole = console;
 	bSendChat = chat;
+	bLog = log
 	return true;
 	#else
 	return false;
 	#endif
+}
+
+stock bool Debug_Prefix(const char[] prefix)
+{
+	strcopy(sPrefix, sizeof(sPrefix), prefix);
 }
 stock bool Debug_Print(char[] format, any ...)
 {
 	#if defined DEBUG
 	char sBuffer[512];
 	VFormat(sBuffer, sizeof(sBuffer), format, 2);
-	Format(sBuffer, sizeof(sBuffer), "[DEBUG] %s", sBuffer);
+	Format(sBuffer, sizeof(sBuffer), "[%s] %s", sPrefix, sBuffer);
 
 	if (bSendServer)
 		PrintToServer(sBuffer);
@@ -716,6 +928,9 @@ stock bool Debug_Print(char[] format, any ...)
 		
 	if (bSendChat)
 		PrintToChatAll(sBuffer);
+		
+	if (bLog)
+		LogToFile(sLogFile, sBuffer);
 		
 	return true;
 	#else
@@ -742,8 +957,139 @@ stock bool Debug_PrintVector(float vec[3])
 	if (bSendChat)
 		PrintToChatAll(sVector);
 		
+	if (bLog)
+		LogToFile(sLogFile, sVector);
+		
 	return true;
 	#else
 	return false;
 	#endif
 }
+
+/**
+* Spawn a particle effect.
+*
+* @param effect		Effect name
+* @return			Particle entity index.
+*/
+stock int CreateParticle(const char[] effect, float pos[3])
+{
+	int ent = CreateEntityByName("info_particle_system");
+	if (ent == -1)
+	{
+		LogError("Failed to create info_particle_system");
+		return -1;
+	}
+
+	TeleportEntity(ent, pos, NULL_VECTOR, NULL_VECTOR);
+	DispatchKeyValue(ent, "effect_name", effect);
+	SetVariantString("!activator");
+	DispatchSpawn(ent);
+	ActivateEntity(ent);
+	AcceptEntityInput(ent, "Start");
+
+
+	SetParticleFlags(ent);
+	return ent;
+}
+
+/**
+* Spawn a particle effect parented with the client index.
+*
+* @param client		Client index.
+* @param effect		Effect name
+* @return			Particle entity index.
+*/
+stock int AddParticlesToPlayer(int client, const char[] effect)
+{
+	int ent = CreateEntityByName("info_particle_system");
+	if (ent == -1)
+	{
+		LogError("Failed to create info_particle_system");
+		return -1;
+	}
+	float vPos[3];
+	GetEntityOrigin(client, vPos);
+	TeleportEntity(ent, vPos, NULL_VECTOR, NULL_VECTOR);
+
+	DispatchKeyValue(ent, "effect_name", effect);
+	SetVariantString("!activator");
+	AcceptEntityInput(ent, "SetParent", client, ent);
+	DispatchSpawn(ent);
+	ActivateEntity(ent);
+	AcceptEntityInput(ent, "Start");
+
+	SetEntPropEnt(ent, Prop_Send, "m_hOwnerEntity", client);
+	SetParticleFlags(ent);
+	return ent;
+}
+
+/**
+* Precache a particle system. (.pcf file without particles/)
+*
+* @param particleSytem	Particle System.
+* @return				Particle system index.
+*/
+stock int PrecacheParticleSystem(const char[] particleSystem)
+{
+    static int particleEffectNames = INVALID_STRING_TABLE;
+
+    if (particleEffectNames == INVALID_STRING_TABLE) 
+    {
+    	particleEffectNames = FindStringTable("ParticleEffectNames")
+        if (particleEffectNames == INVALID_STRING_TABLE) 
+        {
+        	LogError("Unable to find `ParticleEffectNames` string table");
+        	return -1;
+        }
+    }
+
+    int index = FindStringIndex2(particleEffectNames, particleSystem);
+    if (index == INVALID_STRING_INDEX) 
+    {
+        int numStrings = GetStringTableNumStrings(particleEffectNames);
+        if (numStrings >= GetStringTableMaxStrings(particleEffectNames)) 
+        {
+        	LogError("`ParticleEffectNames` max size exceeded");
+        	return -1;
+        }
+        
+        AddToStringTable(particleEffectNames, particleSystem);
+        index = numStrings;
+    }
+    
+    return index;
+}
+
+
+/**
+* Returns the index of a text in a string table. 
+*
+* @param tableidx		String table id.
+* @param str			String to find.
+* @return				The index of the matched string or if none -1.
+*/
+stock int FindStringIndex2(int tableidx, const char[] str)
+{
+    char buf[1024];
+    
+    int numStrings = GetStringTableNumStrings(tableidx);
+    for (int i=0; i < numStrings; i++) 
+    {
+        ReadStringTable(tableidx, i, buf, sizeof(buf));
+        
+        if (StrEqual(buf, str)) {
+            return i;
+        }
+    }
+    
+    return INVALID_STRING_INDEX;
+}
+
+public void SetParticleFlags(int edict) 
+{ 
+    if (GetEdictFlags(edict) & FL_EDICT_ALWAYS) 
+    { 
+        SetEdictFlags(edict, (GetEdictFlags(edict) ^ FL_EDICT_ALWAYS)); 
+    } 
+} 
