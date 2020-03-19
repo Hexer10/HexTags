@@ -59,7 +59,6 @@ Handle hSelTagCookie;
 
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
-ConVar cv_bDisableRankme;
 ConVar cv_bEnableTagsList;
 
 bool bCSGO;
@@ -82,6 +81,7 @@ char sTagConf[PLATFORM_MAX_PATH];
 ArrayList userTags[MAXPLAYERS+1];
 CustomTags selectedTags[MAXPLAYERS+1];
 KeyValues tagsKv;
+
 
 //Plugin info
 public Plugin myinfo =
@@ -147,6 +147,7 @@ public void OnPluginStart()
 	
 #if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
+	RegConsoleCmd("sm_firesel", Cmd_FireSel);
 #endif
 }
 
@@ -186,7 +187,7 @@ public void OnLibraryAdded(const char[] name)
 	{
 		bMostActive = true;
 	}
-	else if (StrEqual(name, "rankme") && !cv_bDisableRankme.BoolValue)
+	else if (StrEqual(name, "rankme"))
 	{
 		bRankme = true;
 	}
@@ -429,6 +430,19 @@ public Action Cmd_GetVars(int client, int args)
 	ReplyToCommand(client, selectedTags[client].NameColor);
 	return Plugin_Handled;
 }
+
+public Action Cmd_FireSel(int client, int args)
+{
+	int count = pfCustomSelector.FunctionCount;
+	int res;
+	
+	Call_StartForward(pfCustomSelector);
+	Call_PushCell(client);
+	Call_PushString("thistoggle");
+	Call_Finish(res);
+	ReplyToCommand(client, "[SM] Fire %i functions, res: %i!", count, res);
+	return Plugin_Handled;
+}
 #endif
 
 //Events
@@ -500,9 +514,9 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
 }
 
-
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
+	Debug_Setup(true, false, false, true); // Disable chat.
 	if (bHideTag[author])
 	{
 		return Plugin_Continue;
@@ -527,6 +541,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	// Rainbow name
 	if (StrEqual(selectedTags[author].NameColor, "{rainbow}")) 
 	{
+		Debug_Print("Rainbow name");
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
 		int color;
@@ -550,6 +565,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	}
 	else if (StrEqual(selectedTags[author].NameColor, "{random}")) //Random name
 	{
+		Debug_Print("Random name");
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
 		int len = strlen(name);
@@ -572,6 +588,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	}
 	else
 	{
+		Debug_Print("Default name");
 		Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", selectedTags[author].ChatTag, selectedTags[author].NameColor, name);
 	}
 	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", selectedTags[author].ChatColor, message);
@@ -592,6 +609,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	
 	if (bGangs)
 	{
+		Debug_Print("Apply gans");
 		static char sGang[32];
 		Gangs_HasGang(author) ?  Gangs_GetGangName(author, sGang, sizeof(sGang)) : cv_sDefaultGang.GetString(sGang, sizeof(sGang));
 		
@@ -601,6 +619,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	
 	if (bRankme)
 	{
+		Debug_Print("Apply rankme");
 		static char sPoints[16];
 		IntToString(RankMe_GetPoints(author), sPoints, sizeof(sPoints));
 		ReplaceString(sNewName, sizeof(sNewName), "{rmPoints}", sPoints);
@@ -615,6 +634,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	//Rainbow Chat
 	if (StrEqual(selectedTags[author].ChatColor, "{rainbow}", false))
 	{
+		Debug_Print("Rainbow chat");
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{rainbow}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
@@ -641,6 +661,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	//Random Chat
 	if (StrEqual(selectedTags[author].ChatColor, "{random}", false))
 	{
+		Debug_Print("Random chat");
 		ReplaceString(sNewMessage, sizeof(sNewMessage), "{random}", "");
 		char sTemp[MAXLENGTH_MESSAGE]; 
 		
@@ -691,6 +712,7 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	}
 	else
 	{
+		Debug_Setup();
 		return Plugin_Continue;
 	}
 	
@@ -704,6 +726,9 @@ public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstr
 	Call_PushString(sPassedMessage);
 	Call_Finish();
 	
+	
+	Debug_Print("Message sent");
+	Debug_Setup();
 	return Plugin_Changed;
 }
 
