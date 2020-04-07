@@ -852,7 +852,7 @@ bool CheckSelector(const char[] selector, int client)
 	}
 	
 	/* CHECK STEAMID */
-	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true))
+	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true) == 0)
 	{
 		char steamid[32];
 		if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
