@@ -998,22 +998,28 @@ bool CheckSelector(const char[] selector, int client)
 	return res;
 }
 
+bool IsFreezeTime()
+{
+	return(GameRules_GetProp("m_bFreezePeriod") == 1);
+}
+
 //Timers
 public Action Timer_ForceTag(Handle timer)
 {
 	if (!bCSGO)
-	return;
-	
+	return Plugin_Continue;
+
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && selectedTags[i].ForceTag && selectedTags[i].ScoreTag[0] != '\0' && !bHideTag[i])
 	{
 		char sTag[32];
 		CS_GetClientClanTag(i, sTag, sizeof(sTag));
-		if (StrEqual(sTag, selectedTags[i].ScoreTag))
+		if (StrEqual(sTag, selectedTags[i].ScoreTag) && !IsFreezeTime())
 		continue;
-		
+
 		LogMessage("%L was changed by an external plugin, forcing him back to the HexTags' default one!", i, sTag);
 		CS_SetClientClanTag(i, selectedTags[i].ScoreTag);
 	}
+	return Plugin_Continue;
 }
 
 //Frames
