@@ -178,7 +178,7 @@ public void OnAllPluginsLoaded()
 	}
 	
 	//Timers
-	if (bCSGO)
+	if ((bCSGO) && (!cv_bParseRoundEnd.BoolValue))
 	CreateTimer(5.0, Timer_ForceTag, _, TIMER_REPEAT);
 }
 
@@ -514,7 +514,14 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 	if (!cv_bParseRoundEnd.BoolValue)
 	return;
 
-	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
+	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && selectedTags[i].ForceTag && selectedTags[i].ScoreTag[0] != '\0' && !bHideTag[i])
+	{
+		char sTag[32];
+		CS_GetClientClanTag(i, sTag, sizeof(sTag));
+		if (StrEqual(sTag, selectedTags[i].ScoreTag))
+		continue;
+
+		CS_SetClientClanTag(i, selectedTags[i].ScoreTag);
 }
 
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
