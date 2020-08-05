@@ -884,9 +884,12 @@ bool CheckSelector(const char[] selector, int client)
 	AdminId admin = GetUserAdmin(client);
 	if (admin != INVALID_ADMIN_ID)
 	{
+		
+		Debug_Print("Found as admin! %N", client);
 		/* CHECK ADMIN GROUP */
 		if (selector[0] == '@')
 		{
+			Debug_Print("Check group: %s",selector);
 			static char sGroup[32];
 			
 			GroupId group = admin.GetGroup(0, sGroup, sizeof(sGroup));
@@ -902,8 +905,9 @@ bool CheckSelector(const char[] selector, int client)
 		/* CHECK ADMIN FLAGS (1)*/
 		if (strlen(selector) == 1)
 		{
+			Debug_Print("Check for flag (1char): ",selector);
 			AdminFlag flag;
-			if (FindFlagByChar(selector[0], flag))
+			if (FindFlagByChar(CharToLower(selector[0]), flag))
 			{
 				if (admin.HasFlag(flag))
 				{
@@ -915,6 +919,7 @@ bool CheckSelector(const char[] selector, int client)
 		/* CHECK ADMIN FLAGS (2)*/
 		if (selector[0] == '&')
 		{
+			Debug_Print("Check group: %s",selector);
 			for (int i = 1; i < strlen(selector); i++)
 			{
 				AdminFlag flag;
@@ -927,6 +932,7 @@ bool CheckSelector(const char[] selector, int client)
 				}
 			}
 		}
+		Debug_Print("Unmatched admin: %s", selector);
 	}
 	
 	/* CHECK PLAYER TEAM */
@@ -1308,4 +1314,21 @@ public int Native_AddCustomSelector(Handle plugin, int numParams)
 public int Native_RemoveCustomSelector(Handle plugin, int numParams)
 {
 	return pfCustomSelector.RemoveFunction(plugin, GetNativeFunction(1));
+}
+
+
+/* From smlib */
+stock void String_ToLower(const char[] input, char[] output, int size)
+{
+	size--;
+
+	int x=0;
+	while (input[x] != '\0' && x < size) {
+
+		output[x] = CharToLower(input[x]);
+
+		x++;
+	}
+
+	output[x] = '\0';
 }
