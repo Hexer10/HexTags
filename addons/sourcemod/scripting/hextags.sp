@@ -859,6 +859,18 @@ bool CheckSelector(const char[] selector, int client)
 		return true;
 	}
 	
+	/* CHECK HUMAN */
+	if (StrEqual(selector, "human", false) && !IsFakeClient(client))
+	{
+		return true;
+	}
+	
+	/* CHECK BOT */
+	if (StrEqual(selector, "bot", false) && IsFakeClient(client))
+	{
+		return true;
+	}
+	
 	/* CHECK STEAMID */
 	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true) == 0)
 	{
