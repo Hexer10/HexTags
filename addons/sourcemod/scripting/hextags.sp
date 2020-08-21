@@ -1139,7 +1139,8 @@ void GetTags(int client, KeyValues kv)
 		}
 		
 		Debug_Print("Setted tag: %s", tags.ScoreTag);
-		CS_SetClientClanTag(client, tags.ScoreTag); //Instantly load the score-tag
+		if (!g_hAnonymous[client])
+			CS_SetClientClanTag(client, tags.ScoreTag); //Instantly load the score-tag
 	}
 	if (StrContains(tags.ChatTag, "{rainbow}") == 0) 
 	{
