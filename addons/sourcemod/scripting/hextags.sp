@@ -56,6 +56,7 @@ Handle fMessageProcessed;
 Handle fMessagePreProcess;
 Handle hVibilityCookie;
 Handle hSelTagCookie;
+Handle hVibilityAdminsCookie;
 
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
@@ -71,6 +72,7 @@ bool bGangs;
 bool bSteamWorks = true;
 bool bHideTag[MAXPLAYERS+1];
 bool bHasRoundEnded;
+bool g_hAnonymous[MAXPLAYERS + 1] = {false, ...};
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
 int iNextDefTag;
@@ -136,6 +138,7 @@ public void OnPluginStart()
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_GENERIC, "Toggle the visibility of your tags");
+	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_KICK, "This allows admins to hide their tags");
 	RegConsoleCmd("sm_tagslist", Cmd_TagsList, "Select your tag!");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
@@ -146,6 +149,7 @@ public void OnPluginStart()
 	
 	hVibilityCookie = RegClientCookie("HexTags_Visibility", "Show or hide the tags.", CookieAccess_Private);
 	hSelTagCookie = RegClientCookie("HexTags_SelectedTag", "Selected Tag", CookieAccess_Private);
+	hVibilityAdminsCookie = RegClientCookie("HexTags_Visibility_Admins", "Show or hide the admin tags.", CookieAccess_Private);
 	
 #if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
@@ -300,6 +304,29 @@ public void warden_OnWardenRemoved(int client)
 	
 	RequestFrame(Frame_LoadTag, client);
 	
+}
+
+public Action Cmd_Anonymous(int client, int args)
+{
+	if (AreClientCookiesCached(client))
+	{
+		char sCookieValue[12];
+		GetClientCookie(client, hVibilityAdminsCookie, sCookieValue, sizeof(sCookieValue));
+		int cookieValue = StringToInt(sCookieValue);
+		if (cookieValue == 1)
+		{
+			cookieValue = 0;
+			g_hAnonymous[client] = false;
+			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+		}
+		else
+		{
+			cookieValue = 1;
+			g_hAnonymous[client] = true;
+			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+		}
+	}
+	return Plugin_Handled;
 }
 
 public void warden_OnDeputyCreated(int client)
@@ -500,7 +527,7 @@ public Action RankMe_LoadTags(int client, int rank, any data)
 		char sRank[16];
 		IntToString(iRank[client], sRank, sizeof(sRank));
 		
-		if (selectedTags[client].ScoreTag[0] == '\0')
+		if ((selectedTags[client].ScoreTag[0] == '\0') || (g_hAnonymous[client]))
 			return;
 			
 		ReplaceString(selectedTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmRank}", sRank);
