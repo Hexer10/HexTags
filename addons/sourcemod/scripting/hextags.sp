@@ -318,6 +318,7 @@ public Action Cmd_Anonymous(int client, int args)
 			cookieValue = 0;
 			g_hAnonymous[client] = false;
 			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+			LoadTags(client);
 			char sTag[32];
 			CS_GetClientClanTag(client, sTag, sizeof(sTag));
 			ReplyToCommand(client, "[SM] You are no longer anonymous.");
@@ -332,6 +333,7 @@ public Action Cmd_Anonymous(int client, int args)
 			cookieValue = 1;
 			g_hAnonymous[client] = true;
 			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+			LoadTags(client);
 			char sTag[32];
 			CS_GetClientClanTag(client, sTag, sizeof(sTag));
 			ReplyToCommand(client, "[SM] You are now anonymous.");
@@ -521,6 +523,21 @@ public void OnClientCookiesCached(int client)
 	}
 	iSelTagId[client] = id;
 	
+	char sCookieValue[12];
+	GetClientCookie(client, hVibilityAdminsCookie, sCookieValue, sizeof(sCookieValue));
+	int cookieValue = StringToInt(sCookieValue);
+	if (cookieValue == 1)
+	{
+		g_hAnonymous[client] = true;
+		LoadTags(client);
+		char sTag[32];
+		CS_GetClientClanTag(client, sTag, sizeof(sTag));
+		if (!StrEqual(sTag, selectedTags[client].ScoreTag))
+		{
+			CS_SetClientClanTag(client, selectedTags[client].ScoreTag);
+		}
+	}
+	return;
 }
 
 public Action RankMe_OnPlayerLoaded(int client)
