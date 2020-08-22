@@ -318,10 +318,11 @@ public Action Cmd_Anonymous(int client, int args)
 			cookieValue = 0;
 			g_hAnonymous[client] = false;
 			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+			SetClientCookie(client, hVibilityAdminsCookie, sCookieValue);
 			LoadTags(client);
 			char sTag[32];
 			CS_GetClientClanTag(client, sTag, sizeof(sTag));
-			ReplyToCommand(client, "[SM] You are no longer anonymous.");
+			ReplyToCommand(client, "[SM] You are no longer anonymous. Your tag is %s", selectedTags[client].ScoreTag);
 			if (StrEqual(sTag, selectedTags[client].ScoreTag))
 			{
 				return Plugin_Handled;
@@ -333,10 +334,11 @@ public Action Cmd_Anonymous(int client, int args)
 			cookieValue = 1;
 			g_hAnonymous[client] = true;
 			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+			SetClientCookie(client, hVibilityAdminsCookie, sCookieValue);
 			LoadTags(client);
 			char sTag[32];
 			CS_GetClientClanTag(client, sTag, sizeof(sTag));
-			ReplyToCommand(client, "[SM] You are now anonymous.");
+			ReplyToCommand(client, "[SM] You are now anonymous. Your tag is %s", selectedTags[client].ScoreTag);
 			if (StrEqual(sTag, selectedTags[client].ScoreTag))
 			{
 				return Plugin_Handled;
