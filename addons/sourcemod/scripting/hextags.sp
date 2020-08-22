@@ -318,12 +318,28 @@ public Action Cmd_Anonymous(int client, int args)
 			cookieValue = 0;
 			g_hAnonymous[client] = false;
 			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+			char sTag[32];
+			CS_GetClientClanTag(client, sTag, sizeof(sTag));
+			ReplyToCommand(client, "[SM] You are no longer anonymous.");
+			if (StrEqual(sTag, selectedTags[client].ScoreTag))
+			{
+				return Plugin_Handled;
+			}
+			CS_SetClientClanTag(client, selectedTags[client].ScoreTag);
 		}
 		else
 		{
 			cookieValue = 1;
 			g_hAnonymous[client] = true;
 			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+			char sTag[32];
+			CS_GetClientClanTag(client, sTag, sizeof(sTag));
+			ReplyToCommand(client, "[SM] You are now anonymous.");
+			if (StrEqual(sTag, selectedTags[client].ScoreTag))
+			{
+				return Plugin_Handled;
+			}
+			CS_SetClientClanTag(client, selectedTags[client].ScoreTag);
 		}
 	}
 	return Plugin_Handled;
@@ -527,7 +543,7 @@ public Action RankMe_LoadTags(int client, int rank, any data)
 		char sRank[16];
 		IntToString(iRank[client], sRank, sizeof(sRank));
 		
-		if ((selectedTags[client].ScoreTag[0] == '\0') || (g_hAnonymous[client]))
+		if (selectedTags[client].ScoreTag[0] == '\0')
 			return;
 			
 		ReplaceString(selectedTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmRank}", sRank);
@@ -899,7 +915,7 @@ bool CheckSelector(const char[] selector, int client)
 	}
 	
 	/* CHECK STEAMID */
-	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true) == 0)
+	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true) == 0 && !g_hAnonymous[client])
 	{
 		char steamid[32];
 		if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
@@ -926,7 +942,7 @@ bool CheckSelector(const char[] selector, int client)
 		
 		Debug_Print("Found as admin! %N", client);
 		/* CHECK ADMIN GROUP */
-		if (selector[0] == '@')
+		if (selector[0] == '@' && !g_hAnonymous[client])
 		{
 			Debug_Print("Check group: %s",selector);
 			static char sGroup[32];
@@ -942,7 +958,7 @@ bool CheckSelector(const char[] selector, int client)
 		}
 		
 		/* CHECK ADMIN FLAGS (1)*/
-		if (strlen(selector) == 1)
+		if (strlen(selector) == 1 && !g_hAnonymous[client])
 		{
 			Debug_Print("Check for flag (1char): ",selector);
 			AdminFlag flag;
@@ -956,7 +972,7 @@ bool CheckSelector(const char[] selector, int client)
 		}
 		
 		/* CHECK ADMIN FLAGS (2)*/
-		if (selector[0] == '&')
+		if (selector[0] == '&' && !g_hAnonymous[client])
 		{
 			Debug_Print("Check group: %s",selector);
 			for (int i = 1; i < strlen(selector); i++)
@@ -1139,8 +1155,7 @@ void GetTags(int client, KeyValues kv)
 		}
 		
 		Debug_Print("Setted tag: %s", tags.ScoreTag);
-		if (!g_hAnonymous[client])
-			CS_SetClientClanTag(client, tags.ScoreTag); //Instantly load the score-tag
+		CS_SetClientClanTag(client, tags.ScoreTag); //Instantly load the score-tag
 	}
 	if (StrContains(tags.ChatTag, "{rainbow}") == 0) 
 	{
