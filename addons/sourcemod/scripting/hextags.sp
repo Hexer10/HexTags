@@ -57,6 +57,7 @@ Handle fMessagePreProcess;
 Handle hVibilityCookie;
 Handle hSelTagCookie;
 Handle g_RoundStatusTimer;
+Handle g_hAnonymousCookie;
 
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
@@ -137,8 +138,11 @@ public void OnPluginStart()
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_GENERIC, "Toggle the visibility of your tags");
+	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_GENERIC, "Toggle the visibility of your tags, but keeps the ranks.");
 	RegConsoleCmd("sm_tagslist", Cmd_TagsList, "Select your tag!");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
+
+	g_hAnonymousCookie = RegClientCookie("AnonymousCookie", "Plugin that defines wether or not an admin is anonymous.", CookieAccess_Protected);
 
 	//Event hooks
 	if (!HookEventEx("round_end", Event_RoundEnd))
@@ -210,6 +214,31 @@ public void OnLibraryAdded(const char[] name)
 	{
 		bSteamWorks = true;
 	}
+}
+
+
+
+public Action Cmd_Anonymous(int client, int args)
+{
+	if (AreClientCookiesCached(client))
+	{
+		char sCookieValue[12];
+		GetClientCookie(client, g_hAnonymousCookie, sCookieValue, sizeof(sCookieValue));
+		int cookieValue = StringToInt(sCookieValue);
+		if (cookieValue == 0)
+		{
+			cookieValue = 1;
+			PrintToChat(client, "You are now anonymous.");
+		}
+		else
+		{
+			cookieValue = 0;
+			PrintToChat(client, "You are no longer anonymous.");
+		}
+		IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
+		SetClientCookie(client, g_hAnonymousCookie, sCookieValue);
+	}
+	LoadTags(client);
 }
 
 public void OnLibraryRemoved(const char[] name)
@@ -866,6 +895,9 @@ void ParseConfig(KeyValues kv, int client)
 
 bool CheckSelector(const char[] selector, int client)
 {
+	char sCookieValue[12];
+	GetClientCookie(client, g_hAnonymousCookie, sCookieValue, sizeof(sCookieValue));
+	int cookieValue = StringToInt(sCookieValue);
 	/* CHECK DEFAULT */
 	if (StrEqual(selector, "default", false))
 	{
@@ -888,7 +920,7 @@ bool CheckSelector(const char[] selector, int client)
 	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true) == 0)
 	{
 		char steamid[32];
-		if (!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
+		if ((!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))||(cookieValue == 1))
 			return false;
 
 		if (StrEqual(steamid, selector))
@@ -909,7 +941,6 @@ bool CheckSelector(const char[] selector, int client)
 	AdminId admin = GetUserAdmin(client);
 	if (admin != INVALID_ADMIN_ID)
 	{
-
 		Debug_Print("Found as admin! %N", client);
 		/* CHECK ADMIN GROUP */
 		if (selector[0] == '@')
@@ -920,6 +951,10 @@ bool CheckSelector(const char[] selector, int client)
 			GroupId group = admin.GetGroup(0, sGroup, sizeof(sGroup));
 			if (group != INVALID_GROUP_ID)
 			{
+				if (cookieValue == 1)
+				{
+					return false;
+				}
 				if (StrEqual(selector[1], sGroup))
 				{
 					return true;
@@ -934,6 +969,10 @@ bool CheckSelector(const char[] selector, int client)
 			AdminFlag flag;
 			if (FindFlagByChar(CharToLower(selector[0]), flag))
 			{
+				if (cookieValue == 1)
+				{
+					return false;
+				}
 				if (admin.HasFlag(flag))
 				{
 					return true;
@@ -950,6 +989,11 @@ bool CheckSelector(const char[] selector, int client)
 				AdminFlag flag;
 				if (FindFlagByChar(selector[i], flag))
 				{
+
+					if (cookieValue == 1)
+					{
+						return false;
+					}
 					if (admin.HasFlag(flag))
 					{
 						return true;
