@@ -138,7 +138,7 @@ public void OnPluginStart()
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_GENERIC, "Toggle the visibility of your tags");
-	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_KICK, "This allows admins to hide their tags");
+	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_GENERIC|ADMFLAG_CUSTOM6, "This allows admins to hide their tags");
 	RegConsoleCmd("sm_tagslist", Cmd_TagsList, "Select your tag!");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
