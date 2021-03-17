@@ -56,12 +56,9 @@ Handle fMessageProcessed;
 Handle fMessagePreProcess;
 Handle hVibilityCookie;
 Handle hSelTagCookie;
-<<<<<<< HEAD
 Handle hVibilityAdminsCookie;
-=======
 Handle g_RoundStatusTimer;
 Handle g_hAnonymousCookie;
->>>>>>> c35922e8bb9973b4c4d3d1a2103e4fb433b1f5a9
 
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
@@ -143,11 +140,7 @@ public void OnPluginStart()
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_GENERIC, "Toggle the visibility of your tags");
-<<<<<<< HEAD
 	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_GENERIC|ADMFLAG_CUSTOM6, "This allows admins to hide their tags");
-=======
-	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_GENERIC, "Toggle the visibility of your tags, but keeps the ranks.");
->>>>>>> c35922e8bb9973b4c4d3d1a2103e4fb433b1f5a9
 	RegConsoleCmd("sm_tagslist", Cmd_TagsList, "Select your tag!");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 
@@ -160,12 +153,9 @@ public void OnPluginStart()
 
 	hVibilityCookie = RegClientCookie("HexTags_Visibility", "Show or hide the tags.", CookieAccess_Private);
 	hSelTagCookie = RegClientCookie("HexTags_SelectedTag", "Selected Tag", CookieAccess_Private);
-<<<<<<< HEAD
 	hVibilityAdminsCookie = RegClientCookie("HexTags_Visibility_Admins", "Show or hide the admin tags.", CookieAccess_Private);
 	
-=======
 
->>>>>>> c35922e8bb9973b4c4d3d1a2103e4fb433b1f5a9
 #if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
 	RegConsoleCmd("sm_firesel", Cmd_FireSel);
@@ -230,30 +220,6 @@ public void OnLibraryAdded(const char[] name)
 	}
 }
 
-
-
-public Action Cmd_Anonymous(int client, int args)
-{
-	if (AreClientCookiesCached(client))
-	{
-		char sCookieValue[12];
-		GetClientCookie(client, g_hAnonymousCookie, sCookieValue, sizeof(sCookieValue));
-		int cookieValue = StringToInt(sCookieValue);
-		if (cookieValue == 0)
-		{
-			cookieValue = 1;
-			PrintToChat(client, "You are now anonymous.");
-		}
-		else
-		{
-			cookieValue = 0;
-			PrintToChat(client, "You are no longer anonymous.");
-		}
-		IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
-		SetClientCookie(client, g_hAnonymousCookie, sCookieValue);
-	}
-	LoadTags(client);
-}
 
 public void OnLibraryRemoved(const char[] name)
 {
@@ -564,7 +530,6 @@ public void OnClientCookiesCached(int client)
 		LogError("Invalid id: %s", sValue);
 	}
 	iSelTagId[client] = id;
-<<<<<<< HEAD
 	
 	char sCookieValue[12];
 	GetClientCookie(client, hVibilityAdminsCookie, sCookieValue, sizeof(sCookieValue));
@@ -581,9 +546,6 @@ public void OnClientCookiesCached(int client)
 		}
 	}
 	return;
-=======
-
->>>>>>> c35922e8bb9973b4c4d3d1a2103e4fb433b1f5a9
 }
 
 public Action RankMe_OnPlayerLoaded(int client)
