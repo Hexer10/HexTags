@@ -1,1 +1,6 @@
+<<<<<<< HEAD
 *.DS_Store
+=======
+/.vscode
+*.smx
+>>>>>>> c35922e8bb9973b4c4d3d1a2103e4fb433b1f5a9
