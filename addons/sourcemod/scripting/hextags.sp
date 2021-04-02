@@ -514,6 +514,8 @@ public void OnClientPostAdminCheck(int client)
 
 public void OnClientCookiesCached(int client)
 {
+	if(!IsValidClient(client))
+		return;
 	static char sValue[32];
 	GetClientCookie(client, hVibilityCookie, sValue, sizeof(sValue));
 

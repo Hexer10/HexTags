@@ -1,46 +1,52 @@
 {
-  // See https://go.microsoft.com/fwlink/?LinkId=733558
-  // for the documentation about the tasks.json format
   "version": "2.0.0",
   "tasks": [
-      {
-          "label": "Compile plugin with SM1.10",
-          "type": "shell",
+    {
+      "label": "Compile plugin",
+      "type": "shell",
 
-          "presentation": {
-              "panel": "new"
-          },
+      "presentation": {
+        "panel": "new"
+      },
 
-          "osx":{
-               "command": "/Users/charleszablit/Documents/Perso/Dev/Sourcemod/sourcemod/scripting/spcomp",
-          },
+      "osx": {
+        "command": "C:\\Users\\Charles\\CloudStation\\Documents\\Perso\\Dev\\sourcemod\\addons\\sourcemod\\scripting\\spcomp.exe"
+      },
 
-          "args": [
-              "${file}",
-              "-E", // Treat warnings as errors
-              "-O2", // Optimization level (0=none, 2=full)
-              "-v2", // "erbosity level; 0=quiet, 1=normal, 2=verbose
-              "-i/Users/charleszablit/Documents/Perso/Dev/Sourcemod/sourcemod/scripting/include", // My default includes
-              "-i${workspaceFolder}/addons/sourcemod/scripting/include", // Include ppath of the plugin with all 3rd-party-includes
-              "-o${workspaceFolder}/addons/sourcemod/plugins/${fileBasenameNoExtension}.smx" // Output path for the smx file
-          ],
+			"linux": {
+        "command": "C:\\Users\\Charles\\CloudStation\\Documents\\Perso\\Dev\\sourcemod\\addons\\sourcemod\\scripting\\spcomp.exe"
+      },
 
-          "problemMatcher": {
-              "owner": "sp",
-              "fileLocation": "absolute",
-              "pattern": {
-                  "regexp": "^(.*)\\((.+)\\)\\s:\\s(((warning|error|fatal error)\\s\\d+):\\s.*)$",
-                  "file": 1,
-                  "line": 2,
-                  "severity": 5,
-                  "message": 3
-              }
-          },
+			"windows": {
+        "command": "C:\\Users\\Charles\\CloudStation\\Documents\\Perso\\Dev\\sourcemod\\addons\\sourcemod\\scripting\\spcomp.exe"
+      },
 
-          "group": {
-              "kind": "build",
-              "isDefault": true
-          }
+      "args": [
+        "${file}",
+        "-E", // Treat warnings as errors
+        "-O2", // Optimization level (0=none, 2=full)
+        "-v2", // "erbosity level; 0=quiet, 1=normal, 2=verbose
+        "-iC:\\Users\\Charles\\CloudStation\\Documents\\Perso\\Dev\\sourcemod\\addons\\sourcemod\\scripting\\include", // My default includes
+        "-i${workspaceFolder}/addons/sourcemod/scripting/include", // Include ppath of the plugin with all 3rd-party-includes
+        "-o${workspaceFolder}/addons/sourcemod/plugins/${fileBasenameNoExtension}.smx" // Output path for the smx file
+      ],
+
+      "problemMatcher": {
+        "owner": "sp",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^(.*)\\((.+)\\)\\s:\\s(((warning|error|fatal error)\\s\\d+):\\s.*)$",
+          "file": 1,
+          "line": 2,
+          "severity": 5,
+          "message": 3
+        }
+      },
+
+      "group": {
+        "kind": "build",
+        "isDefault": true
       }
+    }
   ]
 }
