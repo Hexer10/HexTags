@@ -1214,19 +1214,15 @@ int GetRandomColor()
 
 int GetColor(int color)
 {
-	// TODO: Use modulo operator.
-	while(color > 7)
-	color -= 7;
-
-	switch(color)
+	switch(color % 7)
 	{
-		case  1: return '\x02';
-		case  2: return '\x10';
-		case  3: return '\x09';
-		case  4: return '\x06';
-		case  5: return '\x0B';
-		case  6: return '\x0C';
-		case  7: return '\x0E';
+		case  0: return '\x02';
+		case  1: return '\x10';
+		case  2: return '\x09';
+		case  3: return '\x06';
+		case  4: return '\x0B';
+		case  5: return '\x0C';
+		case  6: return '\x0E';
 	}
 	return '\x01';
 }
