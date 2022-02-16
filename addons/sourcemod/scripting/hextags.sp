@@ -48,17 +48,21 @@
 #pragma newdecls required
 
 
+// EVENTS
 PrivateForward pfCustomSelector;
 
 Handle fTagsUpdated;
 Handle fMessageProcess;
 Handle fMessageProcessed;
 Handle fMessagePreProcess;
+
+// COOKIES
 Handle hVibilityCookie;
 Handle hSelTagCookie;
 Handle hVibilityAdminsCookie;
-Handle g_RoundStatusTimer;
-Handle g_hAnonymousCookie;
+Handle hIsAnonymousCookie;
+
+Handle hRoundStatusTimer;
 
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
@@ -74,7 +78,7 @@ bool bGangs;
 bool bSteamWorks = true;
 bool bHideTag[MAXPLAYERS+1];
 bool bHasRoundEnded;
-bool g_hAnonymous[MAXPLAYERS + 1] = {false, ...};
+bool bIsAnonymous[MAXPLAYERS + 1];
 
 int iRank[MAXPLAYERS+1] = {-1, ...};
 int iNextDefTag;
@@ -140,11 +144,11 @@ public void OnPluginStart()
 	//Reg Cmds
 	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config");
 	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_GENERIC, "Toggle the visibility of your tags");
-	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_GENERIC|ADMFLAG_CUSTOM6, "This allows admins to hide their tags");
+	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_GENERIC, "Toggle the user-specific tags ()");
 	RegConsoleCmd("sm_tagslist", Cmd_TagsList, "Select your tag!");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 
-	g_hAnonymousCookie = RegClientCookie("AnonymousCookie", "Plugin that defines wether or not an admin is anonymous.", CookieAccess_Protected);
+
 
 	//Event hooks
 	if (!HookEventEx("round_end", Event_RoundEnd))
@@ -154,7 +158,7 @@ public void OnPluginStart()
 	hVibilityCookie = RegClientCookie("HexTags_Visibility", "Show or hide the tags.", CookieAccess_Private);
 	hSelTagCookie = RegClientCookie("HexTags_SelectedTag", "Selected Tag", CookieAccess_Private);
 	hVibilityAdminsCookie = RegClientCookie("HexTags_Visibility_Admins", "Show or hide the admin tags.", CookieAccess_Private);
-	
+	hIsAnonymousCookie = RegClientCookie("AnonymousCookie", "Plugin that defines wether or not an admin is anonymous.", CookieAccess_Protected);
 
 #if defined DEBUG
 	RegConsoleCmd("sm_gettagvars", Cmd_GetVars);
@@ -322,7 +326,7 @@ public Action Cmd_Anonymous(int client, int args)
 		if (cookieValue == 1)
 		{
 			cookieValue = 0;
-			g_hAnonymous[client] = false;
+			bIsAnonymous[client] = false;
 			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
 			SetClientCookie(client, hVibilityAdminsCookie, sCookieValue);
 			LoadTags(client);
@@ -338,7 +342,7 @@ public Action Cmd_Anonymous(int client, int args)
 		else
 		{
 			cookieValue = 1;
-			g_hAnonymous[client] = true;
+			bIsAnonymous[client] = true;
 			IntToString(cookieValue, sCookieValue, sizeof(sCookieValue));
 			SetClientCookie(client, hVibilityAdminsCookie, sCookieValue);
 			LoadTags(client);
@@ -538,7 +542,7 @@ public void OnClientCookiesCached(int client)
 	int cookieValue = StringToInt(sCookieValue);
 	if (cookieValue == 1)
 	{
-		g_hAnonymous[client] = true;
+		bIsAnonymous[client] = true;
 		LoadTags(client);
 		char sTag[32];
 		CS_GetClientClanTag(client, sTag, sizeof(sTag));
@@ -582,26 +586,26 @@ public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
 	bHasRoundEnded = true;
 	if (!cv_bParseRoundEnd.BoolValue)
-	return;
+		return;
 
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i))OnClientPostAdminCheck(i);
 }
 
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
-	delete g_RoundStatusTimer;
-	g_RoundStatusTimer = CreateTimer(5.0, ChangeRoundStatus);
+	delete hRoundStatusTimer;
+	hRoundStatusTimer = CreateTimer(5.0, ChangeRoundStatus);
 }
 
 public Action ChangeRoundStatus(Handle timer)
 {
 		bHasRoundEnded = false;
-		g_RoundStatusTimer = null;
+		hRoundStatusTimer = null;
 }
 
 public void OnMapEnd() // required, because forcible change level doesn't fire "round_end" event
 {
-    delete g_RoundStatusTimer;
+    delete hRoundStatusTimer;
 }
 
 public Action CP_OnChatMessage(int& author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool& processcolors, bool& removecolors)
@@ -936,7 +940,7 @@ void ParseConfig(KeyValues kv, int client)
 bool CheckSelector(const char[] selector, int client)
 {
 	char sCookieValue[12];
-	GetClientCookie(client, g_hAnonymousCookie, sCookieValue, sizeof(sCookieValue));
+	GetClientCookie(client, hIsAnonymousCookie, sCookieValue, sizeof(sCookieValue));
 	int cookieValue = StringToInt(sCookieValue);
 	/* CHECK DEFAULT */
 	if (StrEqual(selector, "default", false))
@@ -957,7 +961,7 @@ bool CheckSelector(const char[] selector, int client)
 	}
 
 	/* CHECK STEAMID */
-	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true) == 0 && !g_hAnonymous[client])
+	if(strlen(selector) > 11 && StrContains(selector, "STEAM_", true) == 0 && !bIsAnonymous[client])
 	{
 		char steamid[32];
 		if ((!GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))||(cookieValue == 1))
@@ -983,7 +987,7 @@ bool CheckSelector(const char[] selector, int client)
 	{
 		Debug_Print("Found as admin! %N", client);
 		/* CHECK ADMIN GROUP */
-		if (selector[0] == '@' && !g_hAnonymous[client])
+		if (selector[0] == '@' && !bIsAnonymous[client])
 		{
 			Debug_Print("Check group: %s",selector);
 			static char sGroup[32];
@@ -1003,7 +1007,7 @@ bool CheckSelector(const char[] selector, int client)
 		}
 
 		/* CHECK ADMIN FLAGS (1)*/
-		if (strlen(selector) == 1 && !g_hAnonymous[client])
+		if (strlen(selector) == 1 && !bIsAnonymous[client])
 		{
 			Debug_Print("Check for flag (1char): ",selector);
 			AdminFlag flag;
@@ -1021,7 +1025,7 @@ bool CheckSelector(const char[] selector, int client)
 		}
 
 		/* CHECK ADMIN FLAGS (2)*/
-		if (selector[0] == '&' && !g_hAnonymous[client])
+		if (selector[0] == '&' && !bIsAnonymous[client])
 		{
 			Debug_Print("Check group: %s",selector);
 			for (int i = 1; i < strlen(selector); i++)
