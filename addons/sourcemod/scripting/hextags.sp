@@ -336,11 +336,11 @@ public Action Cmd_Anonymous(int client, int args)
 	
 	if (bIsAnonymous[client])
 	{
-		ReplyToCommand(client, "[SM] You are no longer anonymous. Your score-tag is %s", selectedTags[client].ScoreTag);
+		ReplyToCommand(client, "[SM] You are now anonymous. Your score-tag is %s", selectedTags[client].ScoreTag);
 	}
 	else
 	{
-		ReplyToCommand(client, "[SM] You are now anonymous. Your score-tag is %s", selectedTags[client].ScoreTag);
+		ReplyToCommand(client, "[SM] You are no longer anonymous. Your score-tag is %s", selectedTags[client].ScoreTag);
 	}
 	
 	return Plugin_Handled;
