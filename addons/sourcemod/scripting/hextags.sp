@@ -385,6 +385,7 @@ public Action Cmd_ToggleTags(int client, int args)
 	}
 	
 	SetClientCookie(client, hVibilityCookie, bHideTag[client] ? "0" : "1");
+	return Plugin_Handled;
 }
 
 public Action Cmd_TagsList(int client, int args)
@@ -450,7 +451,7 @@ public int Handler_TagsMenu(Menu menu, MenuAction action, int param1, int param2
 		SetClientCookie(param1, hSelTagCookie, sValue);
 		PrintToChat(param1, "[SM] Setted %s tags", selectedTags[param1].TagName);
 	}
-	
+	return 0;
 }
 
 public Action Cmd_GetTeam(int client, int args)
@@ -543,11 +544,13 @@ public void OnClientCookiesCached(int client)
 public Action RankMe_OnPlayerLoaded(int client)
 {
 	RankMe_GetRank(client, RankMe_LoadTags);
+	return Plugin_Continue;
 }
 
 public Action RankMe_OnPlayerSaved(int client)
 {
 	RankMe_GetRank(client, RankMe_LoadTags);
+	return Plugin_Continue;
 }
 
 public Action RankMe_LoadTags(int client, int rank, any data)
@@ -561,11 +564,12 @@ public Action RankMe_LoadTags(int client, int rank, any data)
 		IntToString(iRank[client], sRank, sizeof(sRank));
 		
 		if (selectedTags[client].ScoreTag[0] == '\0')
-			return;
+			return Plugin_Continue;
 		
 		ReplaceString(selectedTags[client].ScoreTag, sizeof(CustomTags::ScoreTag), "{rmRank}", sRank);
 		CS_SetClientClanTag(client, selectedTags[client].ScoreTag); //Instantly load the score-tag
 	}
+	return Plugin_Continue;
 }
 
 public void Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
@@ -587,6 +591,7 @@ public Action ChangeRoundStatus(Handle timer)
 {
 	bHasRoundEnded = false;
 	hRoundStatusTimer = null;
+	return Plugin_Continue;
 }
 
 public void OnMapEnd() // required, because forcible change level doesn't fire "round_end" event
@@ -1115,7 +1120,7 @@ bool CheckSelector(const char[] selector, int client)
 public Action Timer_ForceTag(Handle timer)
 {
 	if (!bCSGO)
-		return;
+		return Plugin_Stop;
 	
 	for (int i = 1; i <= MaxClients; i++)if (IsClientInGame(i) && selectedTags[i].ForceTag && selectedTags[i].ScoreTag[0] != '\0' && !bHideTag[i])
 	{
@@ -1130,6 +1135,7 @@ public Action Timer_ForceTag(Handle timer)
 		
 		CS_SetClientClanTag(i, selectedTags[i].ScoreTag);
 	}
+	return Plugin_Continue;
 }
 
 //Frames

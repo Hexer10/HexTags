@@ -455,15 +455,16 @@ stock void SetPlayerWeaponAmmo(int client, int weaponEnt, int clip = -1, int amm
 * Gives an Item to a client removing the current weapon
 *
 * @param client			Client Index
-* @param weapon
-* @return					Itea Index
+* @param weapon			
+* @return					Item Index
 */
 stock int GivePlayerItemRemove(int client, const char[] weapon, int slot)
 {
-	if ((weapon = GetPlayerWeaponSlot(client, slot)) != -1)
+	int current = -1;
+	if ((current = GetPlayerWeaponSlot(client, slot)) != -1)
 	{
-		RemovePlayerItem(client, weapon);
-		AcceptEntityInput(weapon, "Kill");
+		RemovePlayerItem(client, current);
+		AcceptEntityInput(current, "Kill");
 	}
 	return GivePlayerItem(client, weapon);
 }
@@ -554,7 +555,6 @@ stock int GetCmdArgInt(int argnum)
 	GetCmdArg(argnum, value, sizeof(value));
 	return StringToInt(value);
 }
-#endif
 
 /**
 * Retrives a command argument given its index as float, from the console or server command
@@ -568,6 +568,7 @@ stock float GetCmdArgFloat(int argnum)
 	GetCmdArg(argnum, value, sizeof(value));
 	return StringToFloat(value);
 }
+#endif
 
 /**
 * Retrives a command argument given its index as bool, from the console or server command
@@ -646,12 +647,12 @@ stock void SetCvarString(char[] cvarName, char[] value)
 	if (StringCvar == null)return;
 	
 	int flags = StringCvar.Flags;
-	StringCvar &= ~FCVAR_NOTIFY;
+	flags &= ~FCVAR_NOTIFY;
 	StringCvar.Flags = flags;
 	StringCvar.SetString(value)
 	
 	flags |= FCVAR_NOTIFY;
-	FloatCvar.Flags = flags;
+	StringCvar.Flags = flags;
 }
 
 
@@ -911,8 +912,13 @@ stock bool Debug_Setup(bool server = false, bool console = true, bool chat = tru
 
 stock bool Debug_Prefix(const char[] prefix)
 {
+	#if defined DEBUG
 	strcopy(sPrefix, sizeof(sPrefix), prefix);
+	return true;
+	#endif
+	return false;
 }
+
 stock bool Debug_Print(char[] format, any ...)
 {
 	#if defined DEBUG
