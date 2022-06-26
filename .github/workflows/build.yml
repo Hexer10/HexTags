@@ -29,6 +29,7 @@ jobs:
           echo "SOURCEMOD_PATH=$SOURCEMOD_PATH" >> $GITHUB_ENV
           echo "SCRIPTS_PATH=$SOURCEMOD_PATH/scripting" >> $GITHUB_ENV
           echo "PLUGINS_PATH=$SOURCEMOD_PATH/plugins" >> $GITHUB_ENV
+          echo "CONFIGS_PATH=$SOURCEMOD_PATH/configs" >> $GITHUB_ENV
 
       - name: Setup SourcePawn Compiler ${{ matrix.SM_VERSION }}
         uses: rumblefrog/setup-sp@master
@@ -50,6 +51,12 @@ jobs:
           mkdir -p $PLUGINS_PATH/
           rsync -av --include='*/' --include="*.smx" --exclude="*" --prune-empty-dirs --remove-source-files $SCRIPTS_PATH/ $PLUGINS_PATH/
 
+      - name: Move configs
+        run: |
+         mv $CONFIGS_PATH/hextags.cfg ./hextags.cfg
+         rm -rf $CONFIGS_PATH/*
+         mv ./hextags.cfg $CONFIGS_PATH/hextags.cfg
+         
       - name: Move addons to build
         run: |
           mkdir build
