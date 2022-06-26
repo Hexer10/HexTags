@@ -42,7 +42,7 @@
 #define REQUIRE_PLUGIN
 
 #define PLUGIN_AUTHOR         "Hexah"
-#define PLUGIN_VERSION        "<TAG>"
+#define PLUGIN_VERSION        "<VERSION>"
 
 #pragma semicolon 1
 #pragma newdecls required
@@ -148,8 +148,6 @@ public void OnPluginStart()
 	
 	RegConsoleCmd("sm_tagslist", Cmd_TagsList, "Select your tag!");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
-	
-	
 	
 	//Event hooks
 	if (!HookEventEx("round_end", Event_RoundEnd))
