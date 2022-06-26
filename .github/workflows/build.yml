@@ -41,7 +41,7 @@ jobs:
 
       - name: Compile HexTags
         run: |
-          spcomp -i $includePath -i $SCRIPTS_PATH/include $file
+          spcomp -i $includePath -i $SCRIPTS_PATH/include hextags.sp
         working-directory: ${{ env.SCRIPTS_PATH }}/
 
       - name: Move compiled plugins
