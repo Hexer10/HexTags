@@ -70,7 +70,8 @@ jobs:
         run: |
           zip -9rq HexTags-${{ env.PLUGIN_VERSION }}.zip build/*
 
+      - name: Upload artifact
       - uses: actions/upload-artifact@v3
         with:
           name: HexTags-${{ env.PLUGIN_VERSION }}
-          path: HexTags-${{ env.PLUGIN_VERSION }}.zip
+          path: build/
