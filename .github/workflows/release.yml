@@ -67,9 +67,13 @@ jobs:
           rm -rf addons/sourcemod/scripting
         working-directory: ./build
 
+      - name: Compress package
+        run: |
+          zip -9rq HexTags-${{ matrix.SM_VERSION }}.zip build/*
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "./build"
+          allowUpdates: true
+          artifacts: "HexTags-${{ matrix.SM_VERSION }}.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
           
