@@ -26,7 +26,7 @@ jobs:
           git fetch --unshallow
           VERSION=$(git describe --tags --abbrev=0)
           SOURCEMOD_PATH=$GITHUB_WORKSPACE/addons/sourcemod
-          echo "PLUGIN_VERSION=${{ matrix.SM_VERSION }}.$VERSION" >> $GITHUB_ENV
+          echo "PLUGIN_VERSION=$VERSION" >> $GITHUB_ENV
           echo "SOURCEMOD_PATH=$SOURCEMOD_PATH" >> $GITHUB_ENV
           echo "SCRIPTS_PATH=$SOURCEMOD_PATH/scripting" >> $GITHUB_ENV
           echo "PLUGINS_PATH=$SOURCEMOD_PATH/plugins" >> $GITHUB_ENV
@@ -69,7 +69,9 @@ jobs:
 
       - name: Compress package
         run: |
-          zip -9rq HexTags-${{ matrix.SM_VERSION }}.zip build/*
+          zip -9rq ../HexTags-${{ matrix.SM_VERSION }}.zip *
+        working-directory: ./build
+
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
