@@ -1,0 +1,75 @@
+name: Release new version
+
+on: 
+  push:
+    tags:
+    - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        SM_VERSION: ["1.10", "1.11"]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: sudo apt install curl p7zip-full p7zip-rar
+
+      - name: Set environment variables
+        run: |
+          git fetch --unshallow
+          VERSION=$(git describe --tags --abbrev=0)
+          SOURCEMOD_PATH=$GITHUB_WORKSPACE/addons/sourcemod
+          echo "PLUGIN_VERSION=${{ matrix.SM_VERSION }}.$VERSION" >> $GITHUB_ENV
+          echo "SOURCEMOD_PATH=$SOURCEMOD_PATH" >> $GITHUB_ENV
+          echo "SCRIPTS_PATH=$SOURCEMOD_PATH/scripting" >> $GITHUB_ENV
+          echo "PLUGINS_PATH=$SOURCEMOD_PATH/plugins" >> $GITHUB_ENV
+          echo "CONFIGS_PATH=$SOURCEMOD_PATH/configs" >> $GITHUB_ENV
+
+      - name: Setup SourcePawn Compiler ${{ matrix.SM_VERSION }}
+        uses: rumblefrog/setup-sp@master
+        with:
+          version: ${{ matrix.SM_VERSION }}
+
+      - name: Set HexTags version
+        run: |
+          sed -i "s/<VERSION>/$PLUGIN_VERSION/g" $SCRIPTS_PATH/hextags.sp
+
+      - name: Compile HexTags
+        run: |
+          spcomp -i $includePath -i $SCRIPTS_PATH/include hextags.sp
+        working-directory: ${{ env.SCRIPTS_PATH }}/
+
+      - name: Move compiled plugins
+        run: |
+          rm -rf $PLUGINS_PATH
+          mkdir -p $PLUGINS_PATH/
+          rsync -av --include='*/' --include="*.smx" --exclude="*" --prune-empty-dirs --remove-source-files $SCRIPTS_PATH/ $PLUGINS_PATH/
+         
+      - name: Move addons to build
+        run: |
+          mkdir build
+          mv ./addons build/
+
+      - name: Add LICENSE to build package
+        run: |
+          mv $GITHUB_WORKSPACE/LICENSE .
+        working-directory: ./build
+
+      - name: Remove unnecessary files and folders from build
+        run: |
+          rm -rf addons/sourcemod/scripting
+        working-directory: ./build
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "./build"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
