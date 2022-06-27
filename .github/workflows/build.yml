@@ -50,12 +50,6 @@ jobs:
           rm -rf $PLUGINS_PATH
           mkdir -p $PLUGINS_PATH/
           rsync -av --include='*/' --include="*.smx" --exclude="*" --prune-empty-dirs --remove-source-files $SCRIPTS_PATH/ $PLUGINS_PATH/
-
-      - name: Move configs
-        run: |
-         mv $CONFIGS_PATH/hextags.cfg ./hextags.cfg
-         rm -rf $CONFIGS_PATH/*
-         mv ./hextags.cfg $CONFIGS_PATH/hextags.cfg
          
       - name: Move addons to build
         run: |
@@ -70,15 +64,10 @@ jobs:
       - name: Remove unnecessary files and folders from build
         run: |
           rm -rf addons/sourcemod/scripting
-          rm -rf addons/sourcemod/configs/{*.cfg,*.ini}
         working-directory: ./build
-      
-      - name: Compress package
-        run: |
-          zip -9rq HexTags-${{ env.PLUGIN_VERSION }}.zip build/*
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: HexTags-${{ env.PLUGIN_VERSION }}
+          name: HexTags-${{ matrix.SM_VERSION }}
           path: build/
