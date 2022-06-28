@@ -948,8 +948,9 @@ stock bool Debug_PrintVector(float vec[3])
 {
 	#if defined DEBUG
 	char sVector[64];
-	const char[][] points = {"x", "y", "z"};
-	for (int i = 0; i < sizeof(vec), i++)
+	char points[][] = {"x", "y", "z"};
+
+	for (int i = 0; i < sizeof(vec); i++)
 	{
 		Format(sVector, sizeof(sVector), "%s | %c: %2.f", points[i], vec[i]);
 	}

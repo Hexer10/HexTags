@@ -1130,7 +1130,7 @@ public Action Timer_ForceTag(Handle timer)
 		if (!bHasRoundEnded) {
 			LogMessage("%L was changed by an external plugin, forcing him back to the HexTags' default one!", i, sTag);
 		}
-		
+
 		CS_SetClientClanTag(i, selectedTags[i].ScoreTag);
 	}
 	return Plugin_Continue;
@@ -1203,7 +1203,8 @@ void GetTags(int client, KeyValues kv)
 		}
 		
 		Debug_Print("Setted tag: %s", tags.ScoreTag);
-		CS_SetClientClanTag(client, tags.ScoreTag); //Instantly load the score-tag
+		if (userTags[client].Length == 0)
+			CS_SetClientClanTag(client, tags.ScoreTag); //Instantly load the score-tag
 	}
 	if (StrContains(tags.ChatTag, "{rainbow}") == 0)
 	{
