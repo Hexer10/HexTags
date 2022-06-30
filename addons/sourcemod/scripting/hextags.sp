@@ -143,7 +143,7 @@ public void OnPluginStart()
 	cv_bParseRoundEnd = CreateConVar("sm_hextags_roundend", "0", "If 1 the tags will be reloaded even on round end - Suggested to be used with plugins like mostactive or rankme.");
 	cv_bEnableTagsList = CreateConVar("sm_hextags_enable_tagslist", "0", "Set to 1 to enable the sm_tagslist command.");
 	cv_fForceTimerInterval = CreateConVar("sm_hextags_timer_interval", "5.0", "How often should the user tags be checked if the match the config ones. Set to 0 to disable", _, true, 0.0);
-	cv_iLogLevel = CreateConVar("sm_hextags_loglevel", "0", "Set the plugin loglevel: 0: No logs, 1: Info, 2: Debug", _, true, 0.0, true, 2.2);
+	cv_iLogLevel = CreateConVar("sm_hextags_loglevel", "0", "Set the plugin loglevel: 0: No logs, 1: Info, 2: Debug", _, true, 0.0, true, 2.0);
 	
 	AutoExecConfig();
 	
