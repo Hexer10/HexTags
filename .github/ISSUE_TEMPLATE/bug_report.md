@@ -26,7 +26,7 @@ If applicable, add screenshots to help explain your problem.
  - OS: [e.g. Ubuntu]
  - Game [e.g. CSGO]
  - Sourcemod version (send `sm version` reply from *server* console.)
- - Sourcemod plugins list (send `sm plugins list` reply from *server* console, if too login use services like [hastebin](https://hastebin.com).)
+ - Sourcemod plugins list (send `sm plugins list` reply from *server* console, if too long use services like [gists]([https://hastebin.com](https://gist.github.com)).)
  - Your hextags.cfg
 
 **Additional context**
