@@ -21,15 +21,23 @@
  */
 #include <sourcemod>
 #include <sdktools>
-#include <chat-processor>
+
+
+
 #include <geoip>
 #include <hexstocks>
 #include <logger>
-#include <hextags>
 #include <clientprefs>
 
 #undef REQUIRE_EXTENSIONS
 #undef REQUIRE_PLUGIN
+#include <scp>
+
+#undef MAXLENGTH_NAME
+#undef MAXLENGTH_MESSAGE
+
+#include <chat-processor>
+
 #include <mostactive>
 #include <cstrike>
 #include <kento_rankme/rankme>
@@ -39,6 +47,9 @@
 #include <SteamWorks>
 #define REQUIRE_EXTENSIONS
 #define REQUIRE_PLUGIN
+
+#include <hextags>
+
 
 #define PLUGIN_AUTHOR         "Hexah"
 #define PLUGIN_VERSION        "<VERSION>"
@@ -547,7 +558,19 @@ public void warden_OnDeputyRemoved(int client)
 	RequestFrame(Frame_LoadTag, client);
 }
 
-public Action CP_OnChatMessage(int & author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool & processcolors, bool & removecolors)
+public Action CP_OnChatMessage(int &author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool &processcolors, bool &removecolors)
+{
+	return OnChatMessageEx(author, name, message, processcolors, removecolors);
+}
+
+public Action OnChatMessage(int &author, ArrayList recipients, char[] name, char[] message)
+{
+	bool dummy;
+	return OnChatMessageEx(author, name, message, dummy, dummy);
+}
+
+
+public Action OnChatMessageEx(int& author, char[] name, char[] message, bool& processcolors, bool& removecolors)
 {
 	if (bHideTag[author])
 	{
