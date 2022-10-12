@@ -211,7 +211,10 @@ public void ConVar_ForceTimerHook(ConVar convar, const char[] oldValue, const ch
 public void OnAllPluginsLoaded()
 {
 	logger.debug("Called OnAllPlugins!");
-	
+
+	if (!LibraryExists("scp") && !LibraryExists("chat-processor"))
+		SetFailState("[HexTags] Either chat-processor or Simple Chat Processor is required to run this plugin.");
+
 	if (FindPluginByFile("custom-chatcolors-cp.smx") || LibraryExists("ccc"))
 		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
 	
