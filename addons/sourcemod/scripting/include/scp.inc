@@ -38,11 +38,11 @@ $Copyright: (c) Simple Plugins 2008-2009$
 #endif
 #define _scp_included
 
-#define MAXLENGTH_INPUT			128 	// Inclues \0 and is the size of the chat input box.
+#define MAXLENGTH_INPUT				128 	// Inclues \0 and is the size of the chat input box.
 #define MAXLENGTH_NAME				64		// This is backwords math to get compability.  Sourcemod has it set at 32, but there is room for more.
-#define MAXLENGTH_MESSAGE		256		// This is based upon the SDK and the length of the entire message, including tags, name, : etc.
+#define MAXLENGTH_MESSAGE			256		// This is based upon the SDK and the length of the entire message, including tags, name, : etc.
 
-#define CHATFLAGS_INVALID		0
+#define CHATFLAGS_INVALID			0
 #define CHATFLAGS_ALL				(1<<0)
 #define CHATFLAGS_TEAM				(1<<1)
 #define CHATFLAGS_SPEC				(1<<2)
@@ -62,7 +62,7 @@ $Copyright: (c) Simple Plugins 2008-2009$
  * @param 		recipients					The handle to the client index adt array of the players who should recieve the chat message
  * @param 		name							The client's name of the player who sent the chat message (Byref)
  * @param 		message						The contents of the chat message (Byref)
- * @return      Action
+ * @noreturn
  **********************************************************************/
 forward Action OnChatMessage(int &author, ArrayList recipients, char[] name, char[] message);
 
@@ -89,15 +89,14 @@ forward void OnChatMessage_Post(int author, ArrayList recipients, const char[] n
  *
  * @return		The current type of chat message (see constants) 
  **********************************************************************/
- native int GetMessageFlags();
+native int GetMessageFlags();
 
  
  
 /**
 Shared plugin information
 **/
-public SharedPlugin:_pl_scp = 
-{
+public SharedPlugin __pl_scp = {
 	name = "scp",
 	file = "simple-chatprocessor.smx",
 #if defined REQUIRE_PLUGIN
@@ -108,7 +107,7 @@ public SharedPlugin:_pl_scp =
 };
 
 #if !defined REQUIRE_PLUGIN
-public _pl_scp_SetNTVOptional()
+public void __pl_scp_SetNTVOptional()
 {
 	MarkNativeAsOptional("GetMessageFlags");
 }

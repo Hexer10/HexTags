@@ -19,6 +19,11 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#pragma semicolon 1
+#pragma newdecls required
+
+
 #include <sourcemod>
 #include <sdktools>
 
@@ -28,6 +33,7 @@
 #include <hexstocks>
 #include <logger>
 #include <clientprefs>
+#include <colorlib>
 
 #undef REQUIRE_EXTENSIONS
 #undef REQUIRE_PLUGIN
@@ -54,8 +60,6 @@
 #define PLUGIN_AUTHOR         "Hexah"
 #define PLUGIN_VERSION        "<VERSION>"
 
-#pragma semicolon 1
-#pragma newdecls required
 
 
 // EVENTS
@@ -179,7 +183,6 @@ public void OnPluginStart()
 	hSelTagCookie = RegClientCookie("HexTags_SelectedTag", "Selected Tag", CookieAccess_Private);
 	hVibilityAdminsCookie = RegClientCookie("HexTags_Visibility_Admins", "Show or hide the admin tags.", CookieAccess_Private);
 	hIsAnonymousCookie = RegClientCookie("HexTags_AnonymousCookie", "Plugin that defines wether or not an admin is anonymous.", CookieAccess_Protected);
-	
 }
 
 public void OnConfigsExecuted() {
@@ -212,8 +215,8 @@ public void OnAllPluginsLoaded()
 {
 	logger.debug("Called OnAllPlugins!");
 
-	if (!LibraryExists("scp") && !LibraryExists("chat-processor"))
-		SetFailState("[HexTags] Either chat-processor or Simple Chat Processor is required to run this plugin.");
+	// if (!LibraryExists("scp") && !LibraryExists("chat-processor"))
+		// SetFailState("[HexTags] Either chat-processor or Simple Chat Processor is required to run this plugin.");
 
 	if (FindPluginByFile("custom-chatcolors-cp.smx") || LibraryExists("ccc"))
 		LogMessage("[HexTags] Found Custom Chat Colors running!\n	Please avoid running it with this plugin!");
@@ -563,17 +566,17 @@ public void warden_OnDeputyRemoved(int client)
 
 public Action CP_OnChatMessage(int &author, ArrayList recipients, char[] flagstring, char[] name, char[] message, bool &processcolors, bool &removecolors)
 {
-	return OnChatMessageEx(author, name, message, processcolors, removecolors);
+	return OnChatMessageEx(author, name, message, processcolors, removecolors, false);
 }
 
 public Action OnChatMessage(int &author, ArrayList recipients, char[] name, char[] message)
 {
 	bool dummy;
-	return OnChatMessageEx(author, name, message, dummy, dummy);
+	return OnChatMessageEx(author, name, message, dummy, dummy, true);
 }
 
 
-public Action OnChatMessageEx(int& author, char[] name, char[] message, bool& processcolors, bool& removecolors)
+public Action OnChatMessageEx(int& author, char[] name, char[] message, bool& processcolors, bool& removecolors, bool processvariables)
 {
 	if (bHideTag[author])
 	{
@@ -619,7 +622,7 @@ public Action OnChatMessageEx(int& author, char[] name, char[] message, bool& pr
 			if (IsCharMB(name[i]))
 				i += bytes - 2;
 		}
-		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", selectedTags[author].ChatTag, sTemp);
+		Format(sNewName, MAXLENGTH_NAME, " %s%s", selectedTags[author].ChatTag, sTemp);
 	}
 	else if (StrEqual(selectedTags[author].NameColor, "{random}")) //Random name
 	{
@@ -642,12 +645,12 @@ public Action OnChatMessageEx(int& author, char[] name, char[] message, bool& pr
 			if (IsCharMB(name[i]))
 				i += bytes - 2;
 		}
-		Format(sNewName, MAXLENGTH_NAME, "%s%s{default}", selectedTags[author].ChatTag, sTemp);
+		Format(sNewName, MAXLENGTH_NAME, " %s%s", selectedTags[author].ChatTag, sTemp);
 	}
 	else
 	{
 		logger.debug("Default name");
-		Format(sNewName, MAXLENGTH_NAME, "%s%s%s{default}", selectedTags[author].ChatTag, selectedTags[author].NameColor, name);
+		Format(sNewName, MAXLENGTH_NAME, " %s%s%s", selectedTags[author].ChatTag, selectedTags[author].NameColor, name); // The first color won't work if there is not a space at the beginning
 	}
 	Format(sNewMessage, MAXLENGTH_MESSAGE, "%s%s", selectedTags[author].ChatColor, message);
 	
@@ -775,6 +778,13 @@ public Action OnChatMessageEx(int& author, char[] name, char[] message, bool& pr
 	
 	processcolors = true;
 	removecolors = false;
+
+	if (processvariables)
+	{
+		logger.debug("Message: %s --- %s", name, message);
+		CFormat(name, MAXLENGTH_NAME);
+		CFormat(message, MAXLENGTH_MESSAGE);
+	}
 	
 	//Call the (post)forward
 	Call_StartForward(fMessageProcessed);
