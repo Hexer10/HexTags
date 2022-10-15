@@ -2,7 +2,6 @@ name: Compile with SourceMod
 
 on:
   push:
-    branches: master
 
 jobs:
   build:
