@@ -3,7 +3,7 @@
  * by: Hexah
  * https://github.com/Hexer10/HexTags
  *
- * Copyright (C) 2017-2022 Mattia (Hexah|Hexer10|Papero)
+ * Copyright (C) 2017-2023 Mattia (Hexah|Hexer10|Papero)
  *
  * This file is part of the HexTags SourceMod Plugin.
  *
@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
+ 
 #include <sourcemod>
 #include <sdktools>
 #include <chat-processor>
@@ -46,7 +47,6 @@
 #pragma semicolon 1
 #pragma newdecls required
 
-
 // EVENTS
 PrivateForward pfCustomSelector;
 
@@ -60,7 +60,6 @@ Handle hVibilityCookie;
 Handle hSelTagCookie;
 Handle hVibilityAdminsCookie;
 Handle hIsAnonymousCookie;
-
 
 ConVar cv_sDefaultGang;
 ConVar cv_bParseRoundEnd;
@@ -95,7 +94,6 @@ Handle forceTimer;
 Handle roundStatusTimer;
 
 Logger logger;
-
 
 //Plugin info
 public Plugin myinfo = 
@@ -150,11 +148,12 @@ public void OnPluginStart()
 	cv_iLogLevel.AddChangeHook(ConVar_LogLevelHook);
 	cv_fForceTimerInterval.AddChangeHook(ConVar_ForceTimerHook);
 
-	//Reg Cmds
-	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_GENERIC, "Reload HexTags plugin config.");
-	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_GENERIC, "Toggle the visibility of your tags.");
-	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_GENERIC, "Toggle the user-specific tags (SteamID, admin groups/flags will be ignored).");
+	//Reg Admin Cmds
+	RegAdminCmd("sm_reloadtags", Cmd_ReloadTags, ADMFLAG_CONFIG, "Reload HexTags plugin config.");
+	RegAdminCmd("sm_toggletags", Cmd_ToggleTags, ADMFLAG_CHAT, "Toggle the visibility of your tags.");
+	RegAdminCmd("sm_anonymous", Cmd_Anonymous, ADMFLAG_CHAT, "Toggle the user-specific tags (SteamID, admin groups/flags will be ignored).");
 	
+	//Reg Console Cmds
 	RegConsoleCmd("sm_tagslist", Cmd_TagsList, "Select your tag!");
 	RegConsoleCmd("sm_getteam", Cmd_GetTeam, "Get current team name");
 	
@@ -168,7 +167,6 @@ public void OnPluginStart()
 	hSelTagCookie = RegClientCookie("HexTags_SelectedTag", "Selected Tag", CookieAccess_Private);
 	hVibilityAdminsCookie = RegClientCookie("HexTags_Visibility_Admins", "Show or hide the admin tags.", CookieAccess_Private);
 	hIsAnonymousCookie = RegClientCookie("HexTags_AnonymousCookie", "Plugin that defines wether or not an admin is anonymous.", CookieAccess_Protected);
-	
 }
 
 public void OnConfigsExecuted() {
@@ -250,7 +248,6 @@ public void OnLibraryAdded(const char[] name)
 		bSteamWorks = true;
 	}
 }
-
 
 public void OnLibraryRemoved(const char[] name)
 {
@@ -629,8 +626,7 @@ public Action CP_OnChatMessage(int & author, ArrayList recipients, char[] flagst
 	static char sTime[16];
 	FormatTime(sTime, sizeof(sTime), "%H:%M");
 	ReplaceString(sNewName, sizeof(sNewName), "{time}", sTime);
-	ReplaceString(sNewMessage, sizeof(sNewMessage), "{time}", sTime);
-	
+	ReplaceString(sNewMessage, sizeof(sNewMessage), "{time}", sTime);	
 	
 	static char sIP[32];
 	static char sCountry[3];
@@ -719,8 +715,7 @@ public Action CP_OnChatMessage(int & author, ArrayList recipients, char[] flagst
 	static char sPassedName[MAXLENGTH_NAME];
 	static char sPassedMessage[MAXLENGTH_NAME];
 	sPassedName = sNewName;
-	sPassedMessage = sNewMessage;
-	
+	sPassedMessage = sNewMessage;	
 	
 	result = Plugin_Continue;
 	//Call the forward
@@ -755,13 +750,11 @@ public Action CP_OnChatMessage(int & author, ArrayList recipients, char[] flagst
 	Call_PushCell(author);
 	Call_PushString(sPassedName);
 	Call_PushString(sPassedMessage);
-	Call_Finish();
-	
+	Call_Finish();	
 	
 	logger.debug("Message sent");
 	return Plugin_Changed;
 }
-
 
 // Events: rankme
 public Action RankMe_OnPlayerLoaded(int client)
@@ -965,8 +958,7 @@ bool CheckSelector(const char[] selector, int client)
 		{
 			return true;
 		}
-	}
-	
+	}	
 	
 	/* PERMISSIONS RELATED CHECKS */
 	AdminId admin = GetUserAdmin(client);
@@ -1099,8 +1091,7 @@ bool CheckSelector(const char[] selector, int client)
 		{
 			return true;
 		}
-	}
-	
+	}	
 	
 	bool res = false;
 	
@@ -1143,7 +1134,6 @@ public Action Timer_RoundStart(Handle timer)
 	return Plugin_Continue;
 }
 
-
 //Frames
 public void Frame_LoadTag(any client)
 {
@@ -1173,8 +1163,7 @@ void GetTags(int client, KeyValues kv, const char[] reason)
 	kv.GetString("ChatTag", tags.ChatTag, sizeof(CustomTags::ChatTag), "");
 	kv.GetString("ChatColor", tags.ChatColor, sizeof(CustomTags::ChatColor), "");
 	kv.GetString("NameColor", tags.NameColor, sizeof(CustomTags::NameColor), "{teamcolor}");
-	tags.ForceTag = kv.GetNum("ForceTag", 1) == 1;
-	
+	tags.ForceTag = kv.GetNum("ForceTag", 1) == 1;	
 	
 	Call_StartForward(fTagsUpdated);
 	Call_PushCell(client);
@@ -1397,8 +1386,7 @@ public int Native_SetClientTag(Handle plugin, int numParams)
 		{
 			strcopy(selectedTags[client].NameColor, sizeof(CustomTags::NameColor), sTag);
 		}
-	}
-	
+	}	
 	
 	logger.debug("Called Native_SetClientTag(%i, %i, %s)", client, tag, sTag);
 	
@@ -1432,7 +1420,6 @@ public int Native_RemoveCustomSelector(Handle plugin, int numParams)
 {
 	return pfCustomSelector.RemoveFunction(plugin, GetNativeFunction(1));
 }
-
 
 /* From smlib */
 stock void String_ToLower(const char[] input, char[] output, int size)
